@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
+import { Compose } from './pages/Compose';
+import { Studio } from './pages/Studio';
+import { Sidebar } from './components/Sidebar';
 import { getTokens, saveTokens } from './utils/auth';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [studioImage, setStudioImage] = useState(null);
 
   useEffect(() => {
     // 1. Check for callback code in URL
@@ -60,5 +65,36 @@ export default function App() {
     );
   }
 
-  return isAuthenticated ? <Dashboard /> : <Login />;
+  if (!isAuthenticated) return <Login />;
+
+  const handleTabChange = (tab) => {
+    if (tab === 'compose') {
+      setStudioImage(null);
+    }
+    setActiveTab(tab);
+  };
+
+  return (
+    <div className="bg-black min-h-screen">
+      <Sidebar activeTab={activeTab} setActiveTab={handleTabChange} />
+      {activeTab === 'dashboard' ? (
+        <Dashboard setActiveTab={setActiveTab} />
+      ) : activeTab === 'compose' ? (
+        <Compose onBack={() => setActiveTab('dashboard')} initialImage={studioImage} />
+      ) : activeTab === 'studio' ? (
+        <Studio 
+          onBack={() => setActiveTab('dashboard')} 
+          onSelectImage={(img) => {
+            setStudioImage(img);
+            setActiveTab('compose');
+          }} 
+        />
+      ) : (
+        <div className="pl-[80px] pt-20 text-center text-text-muted">
+          Coming Soon...
+        </div>
+      )}
+    </div>
+  );
 }
+

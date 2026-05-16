@@ -138,66 +138,77 @@ export const fetchChannels = async (orgId = ORG_ID) => {
   return requestPromise;
 };
 
+let isCreatingPost = false;
+
 export const createPost = async ({ text, channelId, mode = 'addToQueue', dueAt, assets, type }) => {
-  const mutation = gql`
-    mutation CreatePost($input: CreatePostInput!) {
-      createPost(input: $input) {
-        ... on PostActionSuccess {
-          post {
-            id
-            text
-            dueAt
-            status
-            assets {
+  if (isCreatingPost) return { error: true, message: 'A post is already being processed.' };
+  
+  isCreatingPost = true;
+  try {
+    const mutation = gql`
+      mutation CreatePost($input: CreatePostInput!) {
+        createPost(input: $input) {
+          ... on PostActionSuccess {
+            post {
               id
-              mimeType
+              text
+              dueAt
+              status
+              assets {
+                id
+                mimeType
+              }
             }
           }
-        }
-        ... on MutationError {
-          message
+          ... on MutationError {
+            message
+          }
         }
       }
-    }
-  `;
+    `;
 
-  const input = {
-    text,
-    channelId,
-    schedulingType: 'automatic',
-    mode,
-  };
-
-  // Use provided type for Instagram (post/story/reel)
-  if (type) {
-    input.metadata = {
-      instagram: {
-        type: type,
-        shouldShareToFeed: true
-      }
+    const input = {
+      text,
+      channelId,
+      schedulingType: 'automatic',
+      mode,
     };
+
+    if (type) {
+      input.metadata = {
+        instagram: {
+          type: type,
+          shouldShareToFeed: true
+        }
+      };
+    }
+
+    if (mode === 'customScheduled' && dueAt) {
+      input.dueAt = dueAt;
+    }
+
+    if (assets && assets.length > 0) {
+      input.assets = { images: assets };
+    }
+
+    const data = await request(mutation, { input });
+
+    if (!data || data.error) return data || { error: true, message: 'No response from API' };
+
+    const result = data.createPost;
+    if (result?.post) {
+      localStorage.removeItem('postly_cache_posts');
+      return { post: result.post, success: true };
+    }
+
+    const errorMsg = result?.message || 'Buffer rejected this post (Unknown reason)';
+    return { error: true, message: errorMsg };
+  } catch (err) {
+    console.error('[createPost] Fatal Error:', err);
+    return { error: true, message: err.message };
+  } finally {
+    isCreatingPost = false;
   }
-
-  if (mode === 'customScheduled' && dueAt) {
-    input.dueAt = dueAt;
-  }
-
-  if (assets && assets.length > 0) {
-    input.assets = { images: assets };
-  }
-
-  const data = await request(mutation, { input });
-
-  if (!data || data.error) return data || { error: true, message: 'No response from API' };
-
-  const result = data.createPost;
-  if (result?.post) {
-    localStorage.removeItem('postly_cache_posts');
-    return { post: result.post, success: true };
-  }
-
-  const errorMsg = result?.message || 'Buffer rejected this post (Unknown reason)';
-  return { error: true, message: errorMsg };
 };
 
 export const fetchPosts = async (orgId = ORG_ID) => {

@@ -4,7 +4,7 @@ import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { uploadToCloudinary } from '../api/cloudinary';
 
-export const PostComposer = ({ channels, onPost }) => {
+export const PostComposer = ({ channels, onPost, isFullPage, initialImageUrl }) => {
   const [text, setText] = useState('');
   const [selectedChannels, setSelectedChannels] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -12,7 +12,7 @@ export const PostComposer = ({ channels, onPost }) => {
   const [showSchedule, setShowSchedule] = useState(false);
   const [showChannels, setShowChannels] = useState(false);
   const [startDate, setStartDate] = useState(new Date());
-  const [imageUrl, setImageUrl] = useState(null);
+  const [imageUrl, setImageUrl] = useState(initialImageUrl || null);
   const [rawFile, setRawFile] = useState(null);
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
@@ -32,10 +32,13 @@ export const PostComposer = ({ channels, onPost }) => {
     );
   };
 
+  const isSubmitting = useRef(false);
+
   const handlePost = async (e) => {
     e.preventDefault();
-    if (!text || selectedChannels.length === 0 || loading || isUploading) return;
+    if (!text || selectedChannels.length === 0 || loading || isUploading || isSubmitting.current) return;
     
+    isSubmitting.current = true;
     setLoading(true);
     setError(null);
     const mode = showSchedule ? 'customScheduled' : 'addToQueue';
@@ -44,14 +47,16 @@ export const PostComposer = ({ channels, onPost }) => {
     let apiImageUrl = imageUrl;
 
     // If we have a local image, upload it to Cloudinary first
-    if (imageUrl?.startsWith('data:') && rawFile) {
+    if (imageUrl?.startsWith('data:')) {
       setIsUploading(true);
       try {
-        apiImageUrl = await uploadToCloudinary(rawFile);
+        // Use rawFile if available, otherwise use the base64 string directly
+        apiImageUrl = await uploadToCloudinary(rawFile || imageUrl);
       } catch (err) {
         setError('Image upload failed: ' + err.message);
         setLoading(false);
         setIsUploading(false);
+        isSubmitting.current = false;
         return;
       }
       setIsUploading(false);
@@ -61,6 +66,7 @@ export const PostComposer = ({ channels, onPost }) => {
 
     try {
       let hasError = false;
+      // Sequential execution to prevent hitting Buffer rate limits
       for (const channelId of selectedChannels) {
         const channel = channels.find(c => String(c.id) === String(channelId));
         const result = await onPost({ 
@@ -71,10 +77,11 @@ export const PostComposer = ({ channels, onPost }) => {
           assets,
           type: channel?.service === 'instagram' ? igType : null
         });
+        
         if (result?.error) {
           setError(result.message);
           hasError = true;
-          break;
+          break; // Stop loop on first error to protect quota
         }
       }
       
@@ -90,6 +97,7 @@ export const PostComposer = ({ channels, onPost }) => {
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
+      isSubmitting.current = false;
     }
   };
 
@@ -235,21 +243,21 @@ export const PostComposer = ({ channels, onPost }) => {
         <div className="flex gap-3">
           <button 
             onClick={() => fileInputRef.current?.click()}
-            className={`w-14 h-14 rounded-2xl transition-all flex items-center justify-center border ${imageUrl ? 'bg-white text-black border-white shadow-xl shadow-white/10' : 'bg-[#0a0a0a] text-text-muted hover:text-white border-border hover:border-[#333]'}`}
+            className={`w-14 h-14 rounded-2xl transition-all flex items-center justify-center border ${imageUrl ? 'bg-white/10 text-white border-white shadow-xl shadow-white/5' : 'bg-[#0a0a0a] text-text-muted hover:text-white border-border hover:border-[#333]'}`}
             title="Add Image"
           >
             <ImageIcon size={22} />
           </button>
           <button 
             onClick={() => { setShowSchedule(!showSchedule); setShowChannels(false); }}
-            className={`w-14 h-14 rounded-2xl transition-all flex items-center justify-center border ${showSchedule ? 'bg-white text-black border-white shadow-xl shadow-white/10' : 'bg-[#0a0a0a] text-text-muted hover:text-white border-border hover:border-[#333]'}`}
+            className={`w-14 h-14 rounded-2xl transition-all flex items-center justify-center border ${showSchedule ? 'bg-white/10 text-white border-white shadow-xl shadow-white/5' : 'bg-[#0a0a0a] text-text-muted hover:text-white border-border hover:border-[#333]'}`}
             title="Schedule"
           >
             <Clock size={22} />
           </button>
           <button 
             onClick={() => { setShowChannels(!showChannels); setShowSchedule(false); }}
-            className={`w-14 h-14 rounded-2xl transition-all flex items-center justify-center border ${showChannels ? 'bg-white text-black border-white shadow-xl shadow-white/10' : 'bg-[#0a0a0a] text-text-muted hover:text-white border-border hover:border-[#333]'}`}
+            className={`w-14 h-14 rounded-2xl transition-all flex items-center justify-center border ${showChannels ? 'bg-white/10 text-white border-white shadow-xl shadow-white/5' : 'bg-[#0a0a0a] text-text-muted hover:text-white border-border hover:border-[#333]'}`}
             title="Select Channels"
           >
             <Globe size={22} />
@@ -261,8 +269,10 @@ export const PostComposer = ({ channels, onPost }) => {
           disabled={!canPost}
           className={`px-12 py-5 rounded-2xl font-black text-sm flex items-center gap-4 transition-all duration-500 transform ${
             canPost 
-              ? 'bg-white text-black shadow-2xl shadow-white/20 hover:scale-[1.02] active:scale-[0.98] opacity-100 cursor-pointer' 
-              : 'bg-[#111] text-[#333] opacity-50 cursor-not-allowed'
+              ? 'bg-white text-[#444] shadow-2xl shadow-white/20 hover:scale-[1.02] active:scale-[0.98] opacity-100 cursor-pointer' 
+              : isFullPage 
+                ? 'bg-[#151515] text-[#555] border border-white/10 opacity-100 cursor-not-allowed'
+                : 'bg-transparent text-[#333] border border-white/5 opacity-50 cursor-not-allowed'
           }`}
         >
           {isUploading ? 'UPLOADING...' : loading ? 'POSTING...' : showSchedule ? 'SCHEDULE' : 'POST NOW'}
