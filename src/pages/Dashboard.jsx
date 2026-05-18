@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { 
   TrendingUp, 
   MessageSquare, 
@@ -11,34 +11,25 @@ import {
 } from 'lucide-react';
 import { BentoGrid, BentoItem } from '../components/BentoGrid';
 import { StatsCard } from '../components/StatsCard';
-import { fetchChannels, fetchPosts } from '../api/buffer';
+import { useStore } from '../store/useStore';
+import { Button } from '@/components/ui/button';
 
-export const Dashboard = ({ setActiveTab }) => {
-  const [channels, setChannels] = useState([]);
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [isLoadingChannels, setIsLoadingChannels] = useState(true);
-  const [toast, setToast] = useState(null);
+export const Dashboard = () => {
+  const channels = useStore(state => state.channels);
+  const posts = useStore(state => state.posts);
+  const isLoadingChannels = useStore(state => state.isLoadingChannels);
+  const isLoadingPosts = useStore(state => state.isLoadingPosts);
+  const loadAllData = useStore(state => state.loadAllData);
+  const toast = useStore(state => state.toast);
+  const setActiveTab = useStore(state => state.setActiveTab);
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setIsLoadingChannels(true);
-        const [c, p] = await Promise.all([fetchChannels(), fetchPosts()]);
-        setChannels(c);
-        setPosts(p);
-      } catch (err) {
-        console.error('Dashboard loadData Error:', err);
-        setToast(`Connection Error: ${err.message}`);
-      } finally {
-        setLoading(false);
-        setIsLoadingChannels(false);
-      }
-    };
-    loadData();
-  }, []);
+    if (channels.length === 0 || posts.length === 0) {
+      loadAllData();
+    }
+  }, [loadAllData, channels.length, posts.length]);
 
-  if (loading) {
+  if (isLoadingChannels && isLoadingPosts && channels.length === 0 && posts.length === 0) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
@@ -54,28 +45,30 @@ export const Dashboard = ({ setActiveTab }) => {
             <div className="flex items-center gap-8">
               <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
               <div className="hidden md:flex header-toggle-container shadow-inner">
-                <button className="header-toggle-btn active">Weekly</button>
-                <button className="header-toggle-btn">Monthly</button>
+                <Button variant="ghost" className="header-toggle-btn active text-white hover:text-white hover:bg-white/10 h-8 rounded-full">Weekly</Button>
+                <Button variant="ghost" className="header-toggle-btn text-muted-foreground hover:text-white hover:bg-white/10 h-8 rounded-full">Monthly</Button>
               </div>
             </div>
 
             <div className="flex items-center gap-5">
               <div className="flex gap-2">
-                <button 
+                <Button 
+                  variant="outline"
+                  size="icon"
                   onClick={() => { 
                     localStorage.removeItem('postly_cache_channels'); 
                     localStorage.removeItem('postly_cache_posts'); 
                     window.location.reload(); 
                   }}
-                  className="p-3 bg-[#050505] border border-border rounded-xl text-text-muted hover:text-white transition-all hover:border-[#333]"
+                  className="bg-[#050505] rounded-xl text-text-muted hover:text-white transition-all border-none"
                   title="Refresh Data (Clear Cache)"
                 >
                   <Zap size={18} />
-                </button>
-                <button className="p-3 bg-[#050505] border border-border rounded-xl text-text-muted hover:text-white transition-all hover:border-[#333] relative">
+                </Button>
+                <Button variant="outline" size="icon" className="bg-[#050505] border-none rounded-xl text-text-muted hover:text-white transition-all relative">
                   <Bell size={18} />
-                  <span className="absolute top-3 right-3 w-1.5 h-1.5 bg-white rounded-full ring-2 ring-black" />
-                </button>
+                  <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-white rounded-full ring-2 ring-black" />
+                </Button>
               </div>
               <div className="h-10 w-[1px] bg-border mx-1" />
               <div className="flex items-center gap-3 pl-2">
@@ -90,27 +83,27 @@ export const Dashboard = ({ setActiveTab }) => {
             {/* Main Action Area */}
             <BentoItem className="span-2" title="Quick Actions">
               <div className="flex gap-4 h-full">
-                <button 
+                <Button 
                   onClick={() => setActiveTab('compose')}
-                  className="flex-1 bg-white text-black p-8 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 hover:scale-[1.02] transition-all group"
+                  className="flex-1 bg-white text-black h-auto py-8 px-6 rounded-xl flex flex-col items-center justify-center gap-4 hover:scale-[1.02] hover:bg-white transition-all group"
                 >
                   <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center text-white group-hover:rotate-90 transition-transform duration-500">
                     <Plus size={32} />
                   </div>
                   <span className="font-black uppercase tracking-widest text-xs">Create New Post</span>
-                </button>
+                </Button>
                 <div className="flex-1 flex flex-col gap-4">
-                  <div className="flex-1 bg-[#0a0a0a] border border-border rounded-[2.5rem] p-6 flex items-center justify-between group hover:border-[#333] transition-all cursor-pointer">
+                  <div className="flex-1 bg-[#0a0a0a] border-none rounded-xl p-5 flex items-center justify-between group transition-all cursor-pointer">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-1">Queue Health</p>
-                      <p className="text-xl font-bold">Stable</p>
+                      <p className="text-xl font-bold text-white">Stable</p>
                     </div>
                     <Zap size={24} className="text-text-muted group-hover:text-white transition-colors" />
                   </div>
-                  <div className="flex-1 bg-[#0a0a0a] border border-border rounded-[2.5rem] p-6 flex items-center justify-between group hover:border-[#333] transition-all cursor-pointer">
+                  <div className="flex-1 bg-[#0a0a0a] border-none rounded-xl p-5 flex items-center justify-between group transition-all cursor-pointer">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-1">Last Sync</p>
-                      <p className="text-xl font-bold">Just Now</p>
+                      <p className="text-xl font-bold text-white">Just Now</p>
                     </div>
                     <Globe size={24} className="text-text-muted group-hover:text-white transition-colors" />
                   </div>
@@ -157,9 +150,9 @@ export const Dashboard = ({ setActiveTab }) => {
             <BentoItem className="span-2" title="Upcoming Queue">
               <div className="space-y-4">
                 {posts.slice(0, 3).map(post => (
-                  <div key={post.id} className="flex items-center justify-between p-4 bg-black border border-border rounded-2xl group hover:border-[#333] transition-all">
+                  <div key={post.id} className="flex items-center justify-between p-4 bg-black border-none rounded-xl group transition-all">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-[#0a0a0a] border border-border flex items-center justify-center text-xs font-bold">
+                      <div className="w-10 h-10 rounded-lg bg-[#0a0a0a] border-none flex items-center justify-center text-xs font-bold text-white">
                         {new Date(post.dueAt).getDate()}
                       </div>
                       <div>
@@ -185,12 +178,12 @@ export const Dashboard = ({ setActiveTab }) => {
                   </div>
                 ) : channels.length > 0 ? (
                   channels.map(channel => (
-                    <div key={channel.id} className="flex items-center gap-3 p-4 bg-black border border-border rounded-2xl group hover:border-[#333] transition-all">
-                      <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center font-bold text-xs group-hover:bg-white group-hover:text-black transition-colors">
+                    <div key={channel.id} className="flex items-center gap-3 p-4 bg-black border-none rounded-xl group transition-all">
+                      <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center font-bold text-xs text-white group-hover:bg-white group-hover:text-black transition-colors">
                         {channel.service[0].toUpperCase()}
                       </div>
                       <div>
-                        <p className="text-sm font-semibold">{channel.name}</p>
+                        <p className="text-sm font-semibold text-white">{channel.name}</p>
                         <p className="text-[10px] text-text-muted uppercase tracking-widest">{channel.service}</p>
                       </div>
                     </div>
@@ -199,12 +192,13 @@ export const Dashboard = ({ setActiveTab }) => {
                   <div className="col-span-2 py-8 text-center flex flex-col items-center gap-3">
                     <Globe size={24} className="text-text-muted opacity-20" />
                     <p className="text-text-muted text-sm italic">No channels connected yet...</p>
-                    <button 
+                    <Button 
+                      variant="link"
                       onClick={() => { localStorage.removeItem('postly_cache_channels'); window.location.reload(); }}
-                      className="text-[10px] font-black uppercase tracking-widest text-white hover:underline mt-2"
+                      className="text-[10px] font-black uppercase tracking-widest text-white hover:underline mt-2 p-0 h-auto"
                     >
                       Retry Connection
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>
@@ -215,7 +209,7 @@ export const Dashboard = ({ setActiveTab }) => {
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-10 right-10 z-[200] bg-white text-black px-6 py-4 rounded-2xl font-bold shadow-2xl animate-fade-in flex items-center gap-3">
+        <div className="fixed bottom-10 right-10 z-[200] bg-white text-black px-6 py-4 rounded-xl font-bold shadow-2xl animate-fade-in flex items-center gap-3">
           <div className="w-2 h-2 bg-black rounded-full animate-pulse" />
           {toast}
         </div>

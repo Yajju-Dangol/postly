@@ -11,9 +11,11 @@ Keep the implementation simple and readable.
 ## Tech Stack
 - React (Vite-based)
 - Vanilla JS (JSX)
-- Vanilla CSS with custom utility classes (in `index.css`)
+- Tailwind CSS
+- `shadcn/ui` components
 - `graphql-request` (Buffer API)
 - Cloudinary SDK (Browser-side signed uploads)
+- `zustand` (Global State Management)
 - `lucide-react` (Icons)
 Do not introduce new major libraries unless there is a strong reason.
 Ask before installing anything new.
@@ -44,11 +46,13 @@ src/
   context/
   hooks/
   pages/
+  store/
   utils/
 ```
 **src/pages/** is for routes and views (like Dashboard, Compose). Screens compose components and call hooks or APIs.
 **src/components/** is for reusable UI. Create a component when it is reused in multiple places. Examples for this app: `PostComposer`, `Sidebar`, `StatsCard`, `BentoGrid`.
 **src/api/** holds Buffer and Cloudinary API connections, mutations/queries, caching logic, and submission throttles (`buffer.js`, `cloudinary.js`).
+**src/store/** holds the centralized Zustand state (`useStore.js`) managing auth, navigation, and API caches.
 **src/utils/** holds shared logic, formatting, and authentication.
 **src/index.css** is the core design system and utility classes.
 ---
@@ -60,17 +64,16 @@ For any UI task:
 - Bento Overlap: Ensure bento grid spans (`span-2`, `row-2`) are correctly mapped in `index.css`.
 ---
 ## Styling Rules
-Use Vanilla CSS with the custom-built utility system in `index.css`.
-Do not use Tailwind CSS or CSS-in-JS libraries unless explicitly added.
-Do not change the CSS variables in `:root` (`index.css`) as they define the entire project's aesthetic.
+Use Tailwind CSS and `shadcn/ui` components.
+Follow standard Tailwind practices.
 ---
 ## Media Pipeline
 Local images are uploaded to Cloudinary first. The resulting secure URL is then passed to Buffer.
 Use `src/api/cloudinary.js` for signed upload implementations.
 ---
 ## State Management
-- React Hooks (useState, useEffect, useContext) for component state.
-- Persistent caching in the API layer.
+- Zustand for global client state (Auth, Navigation, API Cache, UI Toasts).
+- Local React state (useState) strictly limited to ephemeral form/UI state (e.g., input fields).
 - Ensure strict concurrency control: All mutations MUST be guarded at both the UI level (using `useRef`) and the API level (using a global throttle flag like `isCreatingPost`).
 ---
 ## API & Concurrency

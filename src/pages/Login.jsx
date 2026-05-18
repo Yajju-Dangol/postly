@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShieldCheck, ArrowRight } from 'lucide-react';
 import { generateCodeVerifier, generateCodeChallenge, BUFFER_CONFIG } from '../utils/auth';
+import { Button } from '@/components/ui/button';
 
 export const Login = () => {
   const handleLogin = async () => {
@@ -38,13 +39,14 @@ export const Login = () => {
           </p>
         </div>
 
-        <button 
+        <Button 
           onClick={handleLogin}
-          className="btn-primary w-full py-5 rounded-2xl text-lg flex items-center justify-center gap-3 group"
+          size="lg"
+          className="w-full h-16 rounded-2xl text-lg flex items-center justify-center gap-3 group"
         >
           Continue with Buffer
           <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-        </button>
+        </Button>
 
         <div className="flex items-center justify-center gap-2 text-text-muted text-sm pt-8">
           <ShieldCheck size={16} />

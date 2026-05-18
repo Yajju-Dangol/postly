@@ -1,21 +1,25 @@
 import React from 'react';
-import { LayoutDashboard, PlusCircle, Sparkles, Lightbulb, Users, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, Sparkles, Lightbulb, Building2, Settings, LogOut } from 'lucide-react';
+import { useStore } from '../store/useStore';
 
-export const Sidebar = ({ activeTab, setActiveTab }) => {
+export const Sidebar = () => {
+  const activeTab = useStore((state) => state.activeTab);
+  const setActiveTab = useStore((state) => state.setActiveTab);
+
   const items = [
     { id: 'dashboard', icon: LayoutDashboard },
     { id: 'compose', icon: PlusCircle },
     { id: 'studio', icon: Sparkles },
     { id: 'ideas', icon: Lightbulb },
-    { id: 'channels', icon: Users },
+    { id: 'brand', icon: Building2 },
   ];
 
   return (
-    <aside className="w-[80px] h-screen bg-black border-r border-border flex flex-col items-center py-8 fixed left-0 top-0 z-[100] shadow-2xl">
+    <aside className="w-[80px] h-screen bg-[#0a0a0a] border-none flex flex-col items-center py-8 fixed left-0 top-0 z-[100] shadow-2xl">
       {/* Brand Logo - Blended */}
       <div className="w-12 h-12 flex items-center justify-center mb-10 flex-shrink-0 group cursor-pointer bg-transparent">
-        <div className="w-10 h-10 bg-transparent border border-white/10 rounded-2xl flex items-center justify-center transition-all duration-500 group-hover:border-white group-hover:bg-white/5">
-          <div className="w-4 h-4 border-2 border-white/20 group-hover:border-white rounded-sm transition-all duration-500 bg-transparent" />
+        <div className="w-10 h-10 bg-transparent border-none rounded-2xl flex items-center justify-center transition-all duration-500 group-hover:bg-white/5">
+          <div className="w-4 h-4 border-none bg-white/20 group-hover:bg-white rounded-sm transition-all duration-500" />
         </div>
       </div>
 

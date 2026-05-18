@@ -1,16 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Compose } from './pages/Compose';
 import { Studio } from './pages/Studio';
+import { BusinessDetails } from './pages/BusinessDetails';
 import { Sidebar } from './components/Sidebar';
 import { getTokens, saveTokens } from './utils/auth';
+import { useStore } from './store/useStore';
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [studioImage, setStudioImage] = useState(null);
+  const isAuthenticated = useStore((state) => state.isAuthenticated);
+  const checkingAuth = useStore((state) => state.checkingAuth);
+  const setIsAuthenticated = useStore((state) => state.setIsAuthenticated);
+  const setCheckingAuth = useStore((state) => state.setCheckingAuth);
+  
+  const activeTab = useStore((state) => state.activeTab);
+  const studioImage = useStore((state) => state.studioImage);
+  const setActiveTab = useStore((state) => state.setActiveTab);
+  const setStudioImage = useStore((state) => state.setStudioImage);
 
   useEffect(() => {
     // 1. Check for callback code in URL
@@ -67,20 +74,13 @@ export default function App() {
 
   if (!isAuthenticated) return <Login />;
 
-  const handleTabChange = (tab) => {
-    if (tab === 'compose') {
-      setStudioImage(null);
-    }
-    setActiveTab(tab);
-  };
-
   return (
     <div className="bg-black min-h-screen">
-      <Sidebar activeTab={activeTab} setActiveTab={handleTabChange} />
+      <Sidebar />
       {activeTab === 'dashboard' ? (
-        <Dashboard setActiveTab={setActiveTab} />
+        <Dashboard />
       ) : activeTab === 'compose' ? (
-        <Compose onBack={() => setActiveTab('dashboard')} initialImage={studioImage} />
+        <Compose onBack={() => setActiveTab('dashboard')} />
       ) : activeTab === 'studio' ? (
         <Studio 
           onBack={() => setActiveTab('dashboard')} 
@@ -89,6 +89,8 @@ export default function App() {
             setActiveTab('compose');
           }} 
         />
+      ) : activeTab === 'brand' ? (
+        <BusinessDetails />
       ) : (
         <div className="pl-[80px] pt-20 text-center text-text-muted">
           Coming Soon...
@@ -97,4 +99,5 @@ export default function App() {
     </div>
   );
 }
+
 

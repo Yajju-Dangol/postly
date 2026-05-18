@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { Sparkles, Image as ImageIcon, Send, Loader2, ArrowLeft, Download, Share2 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
+import { useStore } from '../store/useStore';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { BentoGrid, BentoItem } from '../components/BentoGrid';
 
 export const Studio = ({ onBack, onSelectImage }) => {
   const [prompt, setPrompt] = useState('');
@@ -9,6 +14,8 @@ export const Studio = ({ onBack, onSelectImage }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState(null);
   const [error, setError] = useState(null);
+
+  const brandDetails = useStore((state) => state.brandDetails);
 
   const generateImage = async () => {
     if (!prompt.trim()) return;
@@ -24,9 +31,11 @@ export const Studio = ({ onBack, onSelectImage }) => {
 
       const ai = new GoogleGenAI({ apiKey });
       
+      const fullPrompt = `${brandDetails.basePrompt}. Industry: ${brandDetails.industry}. Brand Tone: ${brandDetails.tone}. Required Aesthetic/Style: ${brandDetails.style}. Create the following: ${prompt}`;
+
       const response = await ai.models.generateContent({
         model: "gemini-3.1-flash-image-preview",
-        contents: prompt,
+        contents: fullPrompt,
         config: {
           responseModalities: ["IMAGE"],
           responseFormat: {
@@ -57,17 +66,19 @@ export const Studio = ({ onBack, onSelectImage }) => {
   };
 
   return (
-    <div className="pl-[80px] min-h-screen bg-black text-white p-8 animate-in fade-in duration-700">
-      <div className="max-w-6xl mx-auto">
+    <div className="flex min-h-screen bg-black pl-[80px] text-white">
+      <main className="flex-1 p-8 max-w-[1400px] w-full mx-auto animate-in fade-in duration-700">
         {/* Header */}
         <div className="flex items-center justify-between mb-12">
           <div className="flex items-center gap-4">
-            <button 
+            <Button 
+              variant="outline"
+              size="icon"
               onClick={onBack}
-              className="p-2 hover:bg-white/5 rounded-full transition-colors border border-white/5"
+              className="rounded-full bg-transparent border-none hover:bg-white/5 hover:text-white"
             >
               <ArrowLeft size={20} />
-            </button>
+            </Button>
             <div>
               <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-white via-white/80 to-white/40 bg-clip-text text-transparent">
                 Creative Studio
@@ -77,115 +88,121 @@ export const Studio = ({ onBack, onSelectImage }) => {
           </div>
           
           <div className="flex items-center gap-3">
-            <div className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] uppercase tracking-widest text-white/40">
+            <div className="px-3 py-1 bg-white/5 border-none rounded-full text-[10px] uppercase tracking-widest text-white/40">
               Experimental
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <BentoGrid>
           {/* Input Section */}
-          <div className="lg:col-span-5 space-y-6">
-            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl">
-              <label className="block text-xs font-medium text-white/40 uppercase tracking-wider mb-4">
-                What are you imagining?
-              </label>
-              <textarea
+          <BentoItem className="span-2" title="Generation Prompt">
+            <div className="flex flex-col space-y-6 h-full">
+              <div className="flex-1 bg-[#050505] rounded-xl p-5 shadow-inner min-h-[260px]">
+                <Label className="block text-[10px] font-black uppercase tracking-widest text-text-muted mb-4 px-1">
+                  What are you imagining?
+                </Label>
+              <Textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="Describe the image you want to create in detail..."
-                className="w-full bg-transparent border-none outline-none text-lg resize-none min-h-[200px] placeholder:text-white/10"
+                className="w-full bg-transparent border-none outline-none text-lg resize-none min-h-[180px] placeholder:text-[#333] focus-visible:ring-0 focus-visible:ring-offset-0 p-0 text-white"
               />
+              </div>
               
-              <div className="mt-6 space-y-4">
-                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+              <div className="space-y-6">
+                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 px-1">
                   {['1:1', '16:9', '9:16', '4:3', '3:2'].map((ratio) => (
-                    <button
+                    <Button
                       key={ratio}
+                      variant="outline"
+                      size="sm"
                       onClick={() => setAspectRatio(ratio)}
-                      className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all border ${
+                      className={`rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all h-8 border-none ${
                         aspectRatio === ratio
-                          ? 'bg-white text-black border-white shadow-lg shadow-white/10'
-                          : 'bg-white/5 text-white/40 border-white/5 hover:border-white/20'
+                          ? 'bg-white text-black hover:bg-white/90 shadow-lg shadow-white/10'
+                          : 'bg-white/5 text-white/40 hover:text-white hover:bg-white/10'
                       }`}
                     >
                       {ratio}
-                    </button>
+                    </Button>
                   ))}
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex gap-2">
+                <div className="flex items-center justify-between pt-2">
+                  <div className="flex gap-2 px-1">
                     {['1K', '2K', '4K'].map((res) => (
-                      <button
+                      <Button
                         key={res}
+                        variant="ghost"
+                        size="sm"
                         onClick={() => setResolution(res)}
-                        className={`px-2 py-1 rounded-lg text-[9px] font-black transition-all ${
+                        className={`rounded-lg text-[9px] font-black h-6 transition-all ${
                           resolution === res
-                            ? 'text-white'
+                            ? 'text-white hover:text-white'
                             : 'text-white/20 hover:text-white/40'
                         }`}
                       >
                         {res}
-                      </button>
+                      </Button>
                     ))}
                   </div>
-                  <button
+                  <Button
                     onClick={generateImage}
                     disabled={isGenerating || !prompt.trim()}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-medium transition-all duration-500 ${
+                    className={`rounded-xl font-medium transition-all duration-500 h-12 px-6 ${
                       isGenerating || !prompt.trim()
-                        ? 'bg-white/5 text-white/20 cursor-not-allowed'
-                        : 'bg-white text-black hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]'
+                        ? 'bg-white/5 text-white/20 cursor-not-allowed hover:bg-white/5'
+                        : 'bg-white text-black hover:scale-105 active:scale-95 hover:bg-white shadow-[0_0_20px_rgba(255,255,255,0.2)]'
                     }`}
                   >
                     {isGenerating ? (
                       <>
-                        <Loader2 size={18} className="animate-spin" />
+                        <Loader2 size={18} className="animate-spin mr-2" />
                         Generating...
                       </>
                     ) : (
                       <>
-                        <Sparkles size={18} />
+                        <Sparkles size={18} className="mr-2" />
                         Generate
                       </>
                     )}
-                  </button>
+                  </Button>
                 </div>
               </div>
-            </div>
 
             {error && (
-              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-sm animate-in slide-in-from-top-2">
+              <div className="p-4 bg-red-500/10 border-none rounded-xl text-red-400 text-sm animate-in slide-in-from-top-2">
                 {error}
               </div>
             )}
 
-            <div className="bg-white/5 border border-white/10 rounded-3xl p-6">
-              <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
+            <div className="bg-[#050505] rounded-xl p-5">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted mb-4 flex items-center gap-2">
                 <ImageIcon size={16} className="text-white/40" />
                 Tips for better results
               </h3>
-              <ul className="space-y-3 text-sm text-white/40">
-                <li className="flex gap-2">
-                  <span className="text-white/20">•</span>
+              <ul className="space-y-3 text-[11px] font-medium text-text-muted uppercase tracking-wider">
+                <li className="flex gap-3 items-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/20"></span>
                   Describe the scene, lighting, and mood in detail.
                 </li>
-                <li className="flex gap-2">
-                  <span className="text-white/20">•</span>
+                <li className="flex gap-3 items-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/20"></span>
                   Specify the style (e.g., "3D render", "oil painting", "minimalist").
                 </li>
-                <li className="flex gap-2">
-                  <span className="text-white/20">•</span>
+                <li className="flex gap-3 items-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/20"></span>
                   Mention photography terms like "macro", "wide angle", or "bokeh".
                 </li>
               </ul>
             </div>
-          </div>
+            </div>
+          </BentoItem>
 
           {/* Preview Section */}
-          <div className="lg:col-span-7">
-            <div className="aspect-square bg-white/5 border border-white/10 rounded-[40px] overflow-hidden relative group">
+          <BentoItem className="span-2" title="Studio Output">
+            <div className="aspect-square bg-[#050505] rounded-xl overflow-hidden relative group">
               {generatedImage ? (
                 <>
                   <img 
@@ -194,16 +211,16 @@ export const Studio = ({ onBack, onSelectImage }) => {
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center gap-4 backdrop-blur-sm">
-                    <button 
+                    <Button 
                       onClick={() => onSelectImage(generatedImage)}
-                      className="px-6 py-3 bg-white text-black rounded-2xl font-medium flex items-center gap-2 hover:scale-105 transition-transform"
+                      className="bg-white text-black hover:bg-white rounded-xl font-medium flex items-center gap-2 hover:scale-105 transition-transform h-12 px-6"
                     >
                       <Send size={18} />
                       Use in Post
-                    </button>
-                    <button className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl transition-colors border border-white/10">
+                    </Button>
+                    <Button variant="outline" size="icon" className="bg-white/10 hover:bg-white/20 rounded-xl transition-colors border-none hover:text-white h-12 w-12 text-white">
                       <Download size={20} />
-                    </button>
+                    </Button>
                   </div>
                 </>
               ) : (
@@ -227,15 +244,15 @@ export const Studio = ({ onBack, onSelectImage }) => {
             </div>
             
             {generatedImage && (
-              <div className="mt-6 flex justify-center">
-                <p className="text-white/20 text-xs italic">
+              <div className="mt-8 flex justify-center">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted">
                   SynthID watermarked • Generated with Gemini 3.1 Flash
                 </p>
               </div>
             )}
-          </div>
-        </div>
-      </div>
+          </BentoItem>
+        </BentoGrid>
+      </main>
     </div>
   );
 };

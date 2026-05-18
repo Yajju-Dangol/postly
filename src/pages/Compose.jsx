@@ -1,69 +1,66 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { PostComposer } from '../components/PostComposer';
-import { fetchChannels, createPost } from '../api/buffer';
+import { createPost } from '../api/buffer';
 import { ArrowLeft, Zap } from 'lucide-react';
+import { useStore } from '../store/useStore';
+import { Button } from '@/components/ui/button';
 
-export const Compose = ({ onBack, initialImage }) => {
-  const [channels, setChannels] = useState([]);
-  const [isLoadingChannels, setIsLoadingChannels] = useState(true);
-  const [toast, setToast] = useState(null);
+export const Compose = ({ onBack }) => {
+  const channels = useStore((state) => state.channels);
+  const isLoadingChannels = useStore((state) => state.isLoadingChannels);
+  const toast = useStore((state) => state.toast);
+  const showToast = useStore((state) => state.showToast);
+  const loadChannels = useStore((state) => state.loadChannels);
+  const studioImage = useStore((state) => state.studioImage);
 
   useEffect(() => {
-    const loadChannels = async () => {
-      try {
-        setIsLoadingChannels(true);
-        const c = await fetchChannels();
-        setChannels(c);
-      } catch (err) {
-        console.error('Compose loadChannels Error:', err);
-        setToast(`Connection Error: ${err.message}`);
-      } finally {
-        setIsLoadingChannels(false);
-      }
-    };
-    loadChannels();
-  }, []);
+    if (channels.length === 0) {
+      loadChannels();
+    }
+  }, [channels.length, loadChannels]);
 
   const handlePost = async (data) => {
     const result = await createPost(data);
     if (result.success) {
-      setToast('Post scheduled successfully!');
+      showToast('Post scheduled successfully!', 2000);
       setTimeout(() => {
-        setToast(null);
         if (onBack) onBack();
       }, 2000);
     } else {
       const msg = result.message || 'Check your Buffer connection';
-      setToast(`Error: ${msg}`);
-      setTimeout(() => setToast(null), 5000);
+      showToast(`Error: ${msg}`, 5000);
     }
     return result;
   };
 
   return (
-    <div className="bg-black min-h-screen text-white pl-[80px]">
-      <main className="max-w-[1000px] mx-auto p-8 pt-16">
+    <div className="flex min-h-screen bg-black pl-[80px] text-white">
+      <main className="flex-1 p-8 max-w-[1400px] w-full mx-auto animate-in fade-in duration-700">
         <header className="flex items-center justify-between mb-12">
           <div className="flex items-center gap-6">
-            <button 
+            <Button 
+              variant="outline"
+              size="icon"
               onClick={onBack}
-              className="p-3 bg-[#050505] border border-border rounded-xl text-text-muted hover:text-white transition-all hover:border-[#333]"
+              className="bg-[#050505] border-none rounded-xl text-text-muted hover:text-white transition-all hover:bg-[#333]"
             >
               <ArrowLeft size={20} />
-            </button>
+            </Button>
             <h1 className="text-4xl font-bold tracking-tight">Create Post</h1>
           </div>
           
-          <button 
+          <Button 
+            variant="outline"
+            size="icon"
             onClick={() => { localStorage.removeItem('postly_cache_channels'); window.location.reload(); }}
-            className="p-3 bg-[#050505] border border-border rounded-xl text-text-muted hover:text-white transition-all hover:border-[#333]"
+            className="bg-[#050505] border-none rounded-xl text-text-muted hover:text-white transition-all hover:bg-[#333]"
             title="Refresh Channels"
           >
             <Zap size={18} />
-          </button>
+          </Button>
         </header>
 
-        <div className="bg-[#0a0a0a] border border-border rounded-[3rem] p-10 shadow-2xl relative overflow-hidden">
+        <div className="bg-[#050505] border-none rounded-2xl p-12 shadow-2xl relative overflow-hidden min-h-[500px] flex flex-col">
           {/* Decorative background element */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
           
@@ -77,7 +74,7 @@ export const Compose = ({ onBack, initialImage }) => {
               channels={channels} 
               onPost={handlePost} 
               isFullPage={true} 
-              initialImageUrl={initialImage}
+              initialImageUrl={studioImage}
             />
           )}
         </div>

@@ -5,25 +5,27 @@ Postly is a professional, high-end social media automation dashboard designed to
 
 ## Tech Stack
 - **Frontend**: React (Vite-based)
-- **Styling**: Vanilla CSS with a custom-built utility system (Tailwind-style) in `index.css`.
+- **Styling**: Tailwind CSS with `shadcn/ui` components.
 - **API Communication**: `graphql-request` for interfacing with Buffer's GraphQL endpoint (`/graphql`).
 - **Media Hosting**: **Cloudinary SDK** for secure, signed image uploads.
 - **Icons**: `lucide-react`
 - **Interactive Components**: `react-datepicker` for scheduling.
-- **State Management**: React Hooks (useState, useEffect) with a modular API service layer and persistent caching.
+- **State Management**: **Zustand** for global state (Auth, Navigation, API Cache, UI Toasts), and React Hooks (useState) strictly for ephemeral UI state.
 
 ## Architecture Summary
 The project follows a modular React architecture focused on performance and design consistency:
 - **API Layer (Buffer)**: Centralized in `src/api/buffer.js`. Includes a **Hardened Caching & Deduplication Layer** and a **Strict Submission Throttle** (`isCreatingPost`) to prevent redundant requests.
 - **API Layer (Cloudinary)**: Centralized in `src/api/cloudinary.js`. Handles browser-side signed uploads using SHA-1 signature generation.
 - **Component Layer**: Reusable UI blocks in `src/components`. These are built as "Bento boxes" with high-fidelity padding (`2.5rem`) and large border-radius (`2.5rem`).
-- **Page Layer**: The `Dashboard.jsx` acts as the primary state controller, orchestrating data flow and managing granular loading states.
+- **Store Layer**: Centralized Zustand state in `src/store/useStore.js` managing UI, auth, and data caching.
+- **Page Layer**: Pages like `Dashboard.jsx` connect to the store to display data and manage granular loading states.
 - **Utility Layer**: Shared logic for authentication (OAuth PKCE) and data formatting.
 
 ## Important Folders & Ownership
 - **`/src/api`**: Owns the Buffer and Cloudinary API connections, mutations/queries, and error handling logic.
 - **`/src/components`**: Owns the interactive modules (PostComposer, Sidebar, etc.).
 - **`/src/pages`**: Owns the high-level layout and page-specific business logic.
+- **`/src/store`**: Owns the centralized Zustand state (`useStore.js`) handling UI, auth, and buffer data cache.
 - **`/src/utils`**: Owns the authentication flow and global helper functions.
 
 ## Coding Conventions
@@ -50,9 +52,9 @@ The project follows a modular React architecture focused on performance and desi
 
 ## Key Files to Read First
 1. **`src/api/buffer.js`**: Hardened API logic including the caching and submission throttle layers.
-2. **`src/components/PostComposer.jsx`**: The core action component with multi-layered submission guards.
-3. **`src/index.css`**: Review the design system, bento grid rules, and high-fidelity toggle styles.
-4. **`src/pages/Dashboard.jsx`**: The unified state brain.
+2. **`src/store/useStore.js`**: The central Zustand state brain for auth, navigation, and data caching.
+3. **`src/components/PostComposer.jsx`**: The core action component with multi-layered submission guards.
+4. **`src/index.css`**: Review the design system, bento grid rules, and high-fidelity toggle styles.
 5. **`src/api/cloudinary.js`**: Signed upload implementation for media assets.
 
 ---
