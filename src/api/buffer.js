@@ -330,3 +330,34 @@ export const fetchPosts = async (orgId = ORG_ID, forceRefresh = false) => {
   inFlightRequests.set('posts', requestPromise);
   return requestPromise;
 };
+
+export const deletePost = async (id) => {
+  try {
+    const mutation = gql`
+      mutation DeletePost($input: DeletePostInput!) {
+        deletePost(input: $input) {
+          ... on DeletePostSuccess {
+            id
+          }
+          ... on MutationError {
+            message
+          }
+        }
+      }
+    `;
+
+    const input = { id };
+    const data = await request(mutation, { input });
+    if (!data || data.error) return data || { error: true, message: 'No response from API' };
+
+    const result = data.deletePost;
+    if (result?.id) {
+      localStorage.removeItem('postly_cache_posts');
+      return { success: true };
+    }
+    return { error: true, message: result?.message || 'Buffer rejected deletion' };
+  } catch (err) {
+    console.error('[deletePost] Fatal Error:', err);
+    return { error: true, message: err.message };
+  }
+};

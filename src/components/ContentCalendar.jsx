@@ -15,12 +15,14 @@ import {
   subWeeks,
   isToday
 } from 'date-fns';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Calendar as CalendarIcon, 
-  Clock, 
-  MessageSquare
+import {
+  ChevronLeft,
+  ChevronRight,
+  Calendar as CalendarIcon,
+  Clock,
+  MessageSquare,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
@@ -57,8 +59,10 @@ export function ContentCalendar() {
   const setViewMode = useCalendarStore((state) => state.setViewMode);
   const setCurrentDate = useCalendarStore((state) => state.setCurrentDate);
   const movePost = useCalendarStore((state) => state.movePost);
+  const deletePost = useCalendarStore((state) => state.deletePost);
   const loadCalendarPosts = useCalendarStore((state) => state.loadCalendarPosts);
   const showToast = useStore((state) => state.showToast);
+  const setEditingPost = useStore((state) => state.setEditingPost);
 
   const isReschedulingRef = React.useRef(false);
 
@@ -276,36 +280,62 @@ export function ContentCalendar() {
 
               {/* Day Post Cards list */}
               <div className="space-y-1.5 flex-1 overflow-y-auto max-h-[140px] custom-scrollbar">
-                {dayPosts.map((post) => (
-                  <div
-                    key={post.id}
-                    draggable="true"
-                    onDragStart={(e) => handleDragStart(e, post.id)}
-                    onDragEnd={handleDragEnd}
-                    className="p-2 rounded-xl bg-zinc-950 border border-white/5 hover:border-zinc-700 transition-all cursor-grab active:cursor-grabbing text-left space-y-1.5 group select-none shadow-lg relative"
-                    title={post.text}
-                  >
-                    {/* Caption preview snippet */}
-                    <p className="text-[10px] font-medium text-zinc-300 line-clamp-2 leading-normal">
-                      {post.text}
-                    </p>
+        {dayPosts.map((post) => (
+          <div
+            key={post.id}
+            draggable="true"
+            onDragStart={(e) => handleDragStart(e, post.id)}
+            onDragEnd={handleDragEnd}
+            className="p-2 rounded-xl bg-zinc-950 border border-white/5 hover:border-zinc-700 transition-all cursor-grab active:cursor-grabbing text-left space-y-1.5 group select-none shadow-lg relative"
+            title={post.text}
+          >
+            <p className="text-[10px] font-medium text-zinc-300 line-clamp-2 leading-normal">
+              {post.text}
+            </p>
 
-                    {/* Footer Info Row */}
-                    <div className="flex items-center justify-between border-t border-white/[0.02] pt-1">
-                      <div className="flex items-center gap-1">
-                        {post.channel_ids?.map((cid, i) => (
-                          <span key={i} className="opacity-80">
-                            {renderChannelIcon(post.channel_service || (post.is_buffer_only ? 'buffer' : 'social'))}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex items-center gap-0.5 text-[8px] font-semibold text-zinc-500 font-mono">
-                        <Clock className="w-2.5 h-2.5" />
-                        <span>{format(new Date(post.scheduled_for), 'h:mm a')}</span>
-                      </div>
-                    </div>
-                  </div>
+            <div className="flex items-center justify-between border-t border-white/[0.02] pt-1">
+              <div className="flex items-center gap-1">
+                {post.channel_ids?.map((cid, i) => (
+                  <span key={i} className="opacity-80">
+                    {renderChannelIcon(post.channel_service || (post.is_buffer_only ? 'buffer' : 'social'))}
+                  </span>
                 ))}
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5 text-[8px] font-semibold text-zinc-500 font-mono">
+                  <Clock className="w-2.5 h-2.5" />
+                  <span>{format(new Date(post.scheduled_for), 'h:mm a')}</span>
+                </div>
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setEditingPost(post); }}
+                    className="p-0.5 rounded hover:bg-white/5 text-zinc-500 hover:text-brand-purple transition-all cursor-pointer"
+                    title="Edit"
+                  >
+                    <Pencil className="w-2.5 h-2.5" />
+                  </button>
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!window.confirm('Delete this scheduled post?')) return;
+                      const res = await deletePost(post.id);
+                      if (res.success) {
+                        await loadCalendarPosts();
+                        showToast('Post deleted');
+                      } else {
+                        showToast('Delete failed: ' + res.message);
+                      }
+                    }}
+                    className="p-0.5 rounded hover:bg-white/5 text-zinc-500 hover:text-rose-400 transition-all cursor-pointer"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
               </div>
             </div>
           );

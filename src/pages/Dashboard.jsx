@@ -3,18 +3,20 @@ import { useStore } from '../store/useStore';
 import { useCalendarStore } from '../store/useCalendarStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { ContentCalendar } from '../components/ContentCalendar';
-import { 
-  Plus, 
-  Calendar, 
-  Share2, 
-  CheckCircle2, 
-  Clock, 
+import {
+  Plus,
+  Calendar,
+  Share2,
+  CheckCircle2,
+  Clock,
   ChevronDown,
   AlertTriangle,
   Activity,
   Layers,
   Settings,
-  RefreshCw
+  RefreshCw,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 
 export function Dashboard() {
@@ -28,8 +30,11 @@ export function Dashboard() {
   const errorLogs = useCalendarStore((state) => state.errorLogs);
   const loadCalendarPosts = useCalendarStore((state) => state.loadCalendarPosts);
   const loadErrorLogs = useCalendarStore((state) => state.loadErrorLogs);
+  const deletePost = useCalendarStore((state) => state.deletePost);
   const isLoadingPosts = useCalendarStore((state) => state.isLoading);
   const isLoadingLogs = useCalendarStore((state) => state.isLoadingLogs);
+
+  const setEditingPost = useStore((state) => state.setEditingPost);
 
   const [dateFilter, setDateFilter] = useState('Last 7 Days');
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -259,22 +264,47 @@ export function Dashboard() {
                 <p className="text-[10px] text-zinc-600 mt-0.5">No posts scheduled. Write one now!</p>
               </div>
             ) : (
-              upcomingPosts.map((post) => (
-                <div key={post.id} className="p-3.5 rounded-2xl bg-zinc-950 border border-white/5 flex flex-col justify-between gap-2.5 hover:border-brand-purple/20 transition-all duration-300">
-                  <div className="flex justify-between items-start gap-2">
-                    <p className="text-xs text-zinc-200 line-clamp-2 leading-relaxed flex-1 font-medium">{post.text}</p>
-                    <span className="text-[9px] font-bold text-brand-purple bg-brand-purple/10 border border-brand-purple/10 px-2 py-0.5 rounded-full capitalize shrink-0">
-                      {post.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-zinc-500 font-semibold font-mono">
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>{new Date(post.scheduled_for).toLocaleDateString([], { month: 'short', day: 'numeric' })} at {new Date(post.scheduled_for).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                  </div>
+          upcomingPosts.map((post) => (
+            <div key={post.id} className="p-3.5 rounded-2xl bg-zinc-950 border border-white/5 flex flex-col justify-between gap-2.5 hover:border-brand-purple/20 transition-all duration-300">
+              <div className="flex justify-between items-start gap-2">
+                <p className="text-xs text-zinc-200 line-clamp-2 leading-relaxed flex-1 font-medium">{post.text}</p>
+                <span className="text-[9px] font-bold text-brand-purple bg-brand-purple/10 border border-brand-purple/10 px-2 py-0.5 rounded-full capitalize shrink-0">
+                  {post.status}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-zinc-500 font-semibold font-mono">
+                <div className="flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>{new Date(post.scheduled_for).toLocaleDateString([], { month: 'short', day: 'numeric' })} at {new Date(post.scheduled_for).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
-              ))
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setEditingPost(post)}
+                    className="p-1 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-brand-purple transition-all cursor-pointer"
+                    title="Edit post"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm('Delete this scheduled post?')) return;
+                      const res = await deletePost(post.id);
+                      if (res.success) {
+                        await loadCalendarPosts();
+                        await loadErrorLogs();
+                      } else {
+                        alert('Delete failed: ' + res.message);
+                      }
+                    }}
+                    className="p-1 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-rose-400 transition-all cursor-pointer"
+                    title="Delete post"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
             )}
           </div>
         </div>

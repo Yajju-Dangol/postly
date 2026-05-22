@@ -33,6 +33,11 @@ export const useStore = create((set, get) => ({
   isLoadingChannels: true,
   isLoadingPosts: true,
 
+  // Editing Post State
+  editingPost: null,
+  setEditingPost: (post) => set({ editingPost: post, activeTab: 'compose' }),
+  clearEditingPost: () => set({ editingPost: null }),
+
   // Brand Details State
   brandDetails: JSON.parse(localStorage.getItem('postly_brand_details')) || {
     logoUrl: '',

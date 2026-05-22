@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './useAuthStore';
-import { updatePost as updateBufferPost, fetchPosts as fetchBufferPosts } from '../api/buffer';
+import { updatePost as updateBufferPost, deletePost as deleteBufferPost, fetchPosts as fetchBufferPosts } from '../api/buffer';
 
 const parseBufferDate = (dueAt) => {
   if (!dueAt) return new Date().toISOString();
@@ -216,6 +216,127 @@ export const useCalendarStore = create((set, get) => ({
       return { success: true, post: createdPost };
     } catch (err) {
       console.error('Failed to create automated post:', err);
+        return { success: false, message: err.message };
+      }
+    },
+
+  deletePost: async (postId) => {
+    const user = useAuthStore.getState().user;
+    const posts = get().posts;
+    const post = posts.find(p => p.id === postId);
+
+    if (!post) return { success: false, message: 'Post not found' };
+
+    const originalPosts = [...posts];
+    const filteredPosts = posts.filter(p => p.id !== postId);
+    set({ posts: filteredPosts });
+
+    try {
+      if (user && !post.is_buffer_only) {
+        const { error } = await supabase
+          .from('automated_posts')
+          .delete()
+          .eq('id', postId);
+
+        if (error) throw error;
+      }
+
+      if (post.buffer_post_id) {
+        const res = await deleteBufferPost(post.buffer_post_id);
+        if (res.error) {
+          throw new Error(`Buffer deletion failed: ${res.message}`);
+        }
+      }
+
+      localStorage.setItem('postly_offline_posts', JSON.stringify(filteredPosts));
+      return { success: true };
+    } catch (err) {
+      console.error('Failed to delete post:', err);
+      set({ posts: originalPosts });
+
+      if (user) {
+        try {
+          await supabase.from('error_logs').insert({
+            user_id: user.id,
+            summary: `Deletion failed for post ${postId}`,
+            details: err.message,
+            timestamp: new Date().toISOString()
+          });
+        } catch (dbErr) {
+          console.error('Failed to log deletion error to DB:', dbErr);
+        }
+      }
+
+      return { success: false, message: err.message };
+    }
+  },
+
+  updateAutomatedPost: async (postId, updates) => {
+    const user = useAuthStore.getState().user;
+    const posts = get().posts;
+    const postIndex = posts.findIndex(p => p.id === postId);
+
+    if (postIndex === -1) return { success: false, message: 'Post not found' };
+
+    const post = posts[postIndex];
+    const originalPost = { ...post };
+    const updatedPosts = [...posts];
+    updatedPosts[postIndex] = { ...post, ...updates };
+    set({ posts: updatedPosts });
+
+    try {
+      if (user && !post.is_buffer_only) {
+        const { error } = await supabase
+          .from('automated_posts')
+          .update(updates)
+          .eq('id', postId);
+
+        if (error) throw error;
+      }
+
+      if (post.buffer_post_id) {
+        const bufferUpdates = {};
+        if (updates.text) bufferUpdates.text = updates.text;
+        if (updates.scheduled_for) bufferUpdates.dueAt = updates.scheduled_for;
+        
+        // Handle media_url updates including removal
+        if (updates.media_url !== undefined) {
+          bufferUpdates.assets = updates.media_url ? [{ url: updates.media_url }] : [];
+        }
+
+        if (Object.keys(bufferUpdates).length > 0) {
+          const res = await updateBufferPost({
+            id: post.buffer_post_id,
+            ...bufferUpdates
+          });
+
+          if (res.error) {
+            throw new Error(`Buffer update failed: ${res.message}`);
+          }
+        }
+      }
+
+      localStorage.setItem('postly_offline_posts', JSON.stringify(updatedPosts));
+      return { success: true };
+    } catch (err) {
+      console.error('Failed to update post:', err);
+      const rolledBackPosts = [...posts];
+      rolledBackPosts[postIndex] = originalPost;
+      set({ posts: rolledBackPosts });
+
+      if (user) {
+        try {
+          await supabase.from('error_logs').insert({
+            user_id: user.id,
+            summary: `Update failed for post ${postId}`,
+            details: err.message,
+            timestamp: new Date().toISOString()
+          });
+        } catch (dbErr) {
+          console.error('Failed to log update error to DB:', dbErr);
+        }
+      }
+
       return { success: false, message: err.message };
     }
   }

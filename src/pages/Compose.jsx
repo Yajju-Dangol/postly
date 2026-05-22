@@ -31,6 +31,8 @@ export function Compose({ onBack }) {
   const showToast = useStore((state) => state.showToast);
   const studioImage = useStore((state) => state.studioImage);
   const setStudioImage = useStore((state) => state.setStudioImage);
+  const editingPost = useStore((state) => state.editingPost);
+  const clearEditingPost = useStore((state) => state.clearEditingPost);
 
   // Brand Details state from auth store
   const brandDetails = useAuthStore((state) => state.brandDetails);
@@ -97,11 +99,42 @@ export function Compose({ onBack }) {
 
   // Handle auto-selecting first channel
   useEffect(() => {
-    if (channels.length > 0 && selectedChannels.length === 0) {
+    if (!editingPost && channels.length > 0 && selectedChannels.length === 0) {
       setSelectedChannels([channels[0].id]);
       setPreviewTab(channels[0].service);
     }
-  }, [channels]);
+  }, [channels, editingPost]);
+
+  // Handle editingPost pre-population
+  useEffect(() => {
+    if (editingPost) {
+      setText(editingPost.text || '');
+      setSelectedChannels(editingPost.channel_ids || []);
+      setImageUrl(editingPost.media_url || '');
+      
+      if (editingPost.scheduled_for) {
+        const d = new Date(editingPost.scheduled_for);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        setScheduleDate(`${year}-${month}-${day}`);
+        
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        setScheduleTime(`${hours}:${minutes}`);
+        setScheduleMode('later');
+      } else {
+        setScheduleMode('queue');
+      }
+    }
+  }, [editingPost]);
+
+  // Clean up editingPost state on unmount
+  useEffect(() => {
+    return () => {
+      clearEditingPost();
+    };
+  }, []);
 
   // Select all channels helper
   const handleSelectAll = () => {
@@ -252,13 +285,55 @@ export function Compose({ onBack }) {
 
     isPublishingRef.current = true;
     setIsSubmitting(true);
-    let dbPost = null;
     const user = useAuthStore.getState().user;
     let finalDate = new Date();
     if (scheduleMode === 'later') {
       finalDate = new Date(`${scheduleDate}T${scheduleTime}`);
     }
 
+    // --- UPDATE FLOW ---
+    if (editingPost) {
+      try {
+        showToast('Saving updates. Please wait...');
+        
+        let apiImageUrl = imageUrl;
+        if (imageUrl?.startsWith('data:')) {
+          const { uploadToCloudinary } = await import('../api/cloudinary');
+          apiImageUrl = await uploadToCloudinary(rawFile || imageUrl);
+        }
+
+        const updates = {
+          text,
+          scheduled_for: finalDate.toISOString(),
+          channel_ids: selectedChannels,
+          media_url: apiImageUrl || imageUrl || '',
+        };
+
+        const res = await useCalendarStore.getState().updateAutomatedPost(editingPost.id, updates);
+
+        if (res.success) {
+          await useCalendarStore.getState().loadCalendarPosts();
+          showToast('Success! Post updated successfully.');
+          clearEditingPost();
+          setStudioImage(null);
+          setTimeout(() => {
+            onBack();
+          }, 1500);
+        } else {
+          showToast(`Update failed: ${res.message}`);
+        }
+      } catch (err) {
+        console.error(err);
+        showToast(`Update failed: ${err.message}`);
+      } finally {
+        setIsSubmitting(false);
+        isPublishingRef.current = false;
+      }
+      return;
+    }
+
+    // --- NEW POST FLOW ---
+    let dbPost = null;
     try {
       // 1. Insert record into Supabase automated_posts table with status 'ready_to_schedule'
       if (user) {
@@ -1109,19 +1184,42 @@ export function Compose({ onBack }) {
 
           {/* Action Trigger Buttons */}
           <div className="p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 flex gap-4">
-            <button
-              onClick={() => showToast('Saved draft to local cache')}
-              className="flex-1 btn-premium py-3 text-xs"
-            >
-              Save as Draft
-            </button>
-            <button
-              onClick={handlePublish}
-              disabled={isSubmitting || !text.trim() || selectedChannels.length === 0}
-              className="flex-1 btn-accent py-3 text-xs gap-1.5"
-            >
-              <span>{scheduleMode === 'later' ? 'Schedule Post' : 'Add to Queue'}</span>
-            </button>
+            {editingPost ? (
+              <>
+                <button
+                  onClick={() => {
+                    clearEditingPost();
+                    onBack();
+                  }}
+                  className="flex-1 btn-premium py-3 text-xs"
+                >
+                  Cancel Edit
+                </button>
+                <button
+                  onClick={handlePublish}
+                  disabled={isSubmitting || !text.trim() || selectedChannels.length === 0}
+                  className="flex-1 btn-accent py-3 text-xs gap-1.5"
+                >
+                  <span>{isSubmitting ? 'Updating...' : 'Update Post'}</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => showToast('Saved draft to local cache')}
+                  className="flex-1 btn-premium py-3 text-xs"
+                >
+                  Save as Draft
+                </button>
+                <button
+                  onClick={handlePublish}
+                  disabled={isSubmitting || !text.trim() || selectedChannels.length === 0}
+                  className="flex-1 btn-accent py-3 text-xs gap-1.5"
+                >
+                  <span>{scheduleMode === 'later' ? 'Schedule Post' : 'Add to Queue'}</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
 
