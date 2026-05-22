@@ -45,6 +45,7 @@ export const publishPostWorkflow = async ({
   const assets = apiImageUrl ? [{ url: apiImageUrl }] : [];
 
   // 2. Sequential Requests (Buffer rate limit protection)
+  const bufferPostIds = [];
   try {
     for (const channelId of selectedChannels) {
       const channel = channels.find(c => String(c.id) === String(channelId));
@@ -62,9 +63,18 @@ export const publishPostWorkflow = async ({
       if (result?.error) {
         return { success: false, message: result.message };
       }
+      
+      if (result?.post?.id) {
+        bufferPostIds.push(result.post.id);
+      }
     }
     
-    return { success: true, message: 'Successfully scheduled to all channels' };
+    return { 
+      success: true, 
+      message: 'Successfully scheduled to all channels',
+      bufferPostId: bufferPostIds[0] || null,
+      mediaUrl: apiImageUrl
+    };
   } catch (err) {
     return { success: false, message: 'An unexpected error occurred: ' + err.message };
   }

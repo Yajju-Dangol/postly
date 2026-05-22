@@ -4,33 +4,30 @@ import { Dashboard } from './pages/Dashboard';
 import { Compose } from './pages/Compose';
 import { Studio } from './pages/Studio';
 import { BusinessDetails } from './pages/BusinessDetails';
+import { ContentCalendar } from './components/ContentCalendar';
 import { Sidebar } from './components/Sidebar';
 import { getTokens, saveTokens } from './utils/auth';
 import { useStore } from './store/useStore';
+import { useAuthStore } from './store/useAuthStore';
 
 export default function App() {
-  const isAuthenticated = useStore((state) => state.isAuthenticated);
-  const checkingAuth = useStore((state) => state.checkingAuth);
-  const setIsAuthenticated = useStore((state) => state.setIsAuthenticated);
-  const setCheckingAuth = useStore((state) => state.setCheckingAuth);
-  
+  const { isAuthenticated, loading, initSessionListener, setDevBypass } = useAuthStore();
   const activeTab = useStore((state) => state.activeTab);
   const studioImage = useStore((state) => state.studioImage);
   const setActiveTab = useStore((state) => state.setActiveTab);
   const setStudioImage = useStore((state) => state.setStudioImage);
+  const showToast = useStore((state) => state.showToast);
 
   useEffect(() => {
-    // 1. Check for callback code in URL
+    // 1. Initialize Supabase Auth listener
+    const unsubscribe = initSessionListener();
+
+    // 2. Check for Buffer OAuth callback code in URL
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
 
-    const checkAuth = async () => {
-      // Check existing tokens
-      const tokens = getTokens();
-      if (tokens && tokens.expiry > Date.now()) {
-        setIsAuthenticated(true);
-      } else if (code) {
-        // Handle OAuth Callback
+    const handleBufferCallback = async () => {
+      if (code) {
         try {
           const verifier = localStorage.getItem('code_verifier');
           const response = await fetch('https://auth.buffer.com/token', {
@@ -41,33 +38,37 @@ export default function App() {
               grant_type: 'authorization_code',
               code,
               redirect_uri: window.location.origin + '/callback',
-              code_verifier: verifier
+              code_verifier: verifier || ''
             }),
           });
           const data = await response.json();
           if (data.access_token) {
             saveTokens(data);
-            setIsAuthenticated(true);
-            // Clean URL
+            showToast('Buffer integration connected successfully! 🚀');
+            // Clean URL query parameters
             window.history.replaceState({}, document.title, "/");
           }
         } catch (err) {
-          console.error('Auth failed', err);
+          console.error('Buffer OAuth failed:', err);
+          showToast('Failed to connect Buffer account');
         }
-      } else if (import.meta.env.VITE_BUFFER_API_KEY) {
-        // Fallback to PAT for development if provided
-        setIsAuthenticated(true);
       }
-      setCheckingAuth(false);
     };
 
-    checkAuth();
+    handleBufferCallback();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
-  if (checkingAuth) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-10 h-10 border-2 border-white/10 border-t-brand-purple rounded-full animate-spin" />
+          <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">PostFlow Securing Session</p>
+        </div>
       </div>
     );
   }
@@ -91,13 +92,19 @@ export default function App() {
         />
       ) : activeTab === 'brand' ? (
         <BusinessDetails />
+      ) : activeTab === 'calendar' ? (
+        <div className="pl-[240px] min-h-screen bg-black text-white p-10 animate-fade-in-up">
+          <header className="mb-8">
+            <h2 className="text-2xl font-bold tracking-tight text-white">Content Calendar</h2>
+            <p className="text-zinc-500 text-xs mt-1">Drag and drop to reschedule posts across your content pipeline.</p>
+          </header>
+          <ContentCalendar />
+        </div>
       ) : (
-        <div className="pl-[80px] pt-20 text-center text-text-muted">
-          Coming Soon...
+        <div className="pl-[240px] pt-20 text-center text-zinc-500 font-mono text-xs">
+          Workspace component not found.
         </div>
       )}
     </div>
   );
 }
-
-

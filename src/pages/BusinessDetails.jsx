@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { 
   Building2, 
   Sparkles, 
@@ -14,9 +15,12 @@ import {
 } from 'lucide-react';
 
 export function BusinessDetails() {
-  const brandDetails = useStore((state) => state.brandDetails);
-  const setBrandDetails = useStore((state) => state.setBrandDetails);
+  const brandDetails = useAuthStore((state) => state.brandDetails);
+  const setBrandDetails = useAuthStore((state) => state.setBrandDetails);
+  const fetchBrandDetails = useAuthStore((state) => state.fetchBrandDetails);
   const showToast = useStore((state) => state.showToast);
+
+  const isSavingRef = useRef(false);
 
   // Form states initialized from store values
   const [name, setName] = useState(brandDetails.name || 'Mountain Peak Co.');
@@ -28,17 +32,42 @@ export function BusinessDetails() {
   const [basePrompt, setBasePrompt] = useState(brandDetails.basePrompt || 'A highly professional, premium image.');
   const [description, setDescription] = useState(brandDetails.description || 'We inspire and equip adventurers to explore the world’s most breathtaking places. Quality gear, expert advice.');
 
-  const handleSave = () => {
-    setBrandDetails({
-      name,
-      tagline,
-      industry,
-      tone,
-      colors,
-      basePrompt,
-      description
-    });
-    showToast('Brand Identity Profile saved successfully! ✨');
+  // Load from DB on mount
+  useEffect(() => {
+    fetchBrandDetails();
+  }, []);
+
+  // Sync form states when store data finishes loading
+  useEffect(() => {
+    setName(brandDetails.name || '');
+    setTagline(brandDetails.tagline || '');
+    setIndustry(brandDetails.industry || 'Technology');
+    setTone(brandDetails.tone || 'Professional and modern');
+    setColors(brandDetails.colors || ['#001b2a', '#f97316', '#0d1b2a']);
+    setBasePrompt(brandDetails.basePrompt || 'A highly professional, premium image.');
+    setDescription(brandDetails.description || '');
+  }, [brandDetails]);
+
+  const handleSave = async () => {
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
+    try {
+      await setBrandDetails({
+        name,
+        tagline,
+        industry,
+        tone,
+        colors,
+        basePrompt,
+        description
+      });
+      showToast('Brand Identity Profile saved & synced! ✨');
+    } catch (err) {
+      console.error(err);
+      showToast(`Save failed: ${err.message}`);
+    } finally {
+      isSavingRef.current = false;
+    }
   };
 
   const handleColorChange = (index, value) => {
@@ -46,6 +75,7 @@ export function BusinessDetails() {
     updated[index] = value;
     setColors(updated);
   };
+
 
   return (
     <div className="pl-[240px] min-h-screen bg-black text-white p-10 animate-fade-in-up">

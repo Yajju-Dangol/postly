@@ -87,9 +87,13 @@ export const fetchOrganizations = async () => {
   return data?.account?.organizations || [];
 };
 
-export const fetchChannels = async (orgId = ORG_ID) => {
-  const cached = getCachedData('channels');
-  if (cached) return cached;
+export const fetchChannels = async (orgId = ORG_ID, forceRefresh = false) => {
+  if (forceRefresh) {
+    localStorage.removeItem('postly_cache_channels');
+  } else {
+    const cached = getCachedData('channels');
+    if (cached) return cached;
+  }
 
   if (inFlightRequests.has('channels')) return inFlightRequests.get('channels');
 
@@ -211,9 +215,59 @@ export const createPost = async ({ text, channelId, mode = 'addToQueue', dueAt, 
   }
 };
 
-export const fetchPosts = async (orgId = ORG_ID) => {
-  const cached = getCachedData('posts');
-  if (cached) return cached;
+
+export const updatePost = async ({ id, text, dueAt, assets }) => {
+  try {
+    const mutation = gql`
+      mutation UpdatePost($input: UpdatePostInput!) {
+        updatePost(input: $input) {
+          ... on PostActionSuccess {
+            post {
+              id
+              text
+              dueAt
+              status
+            }
+          }
+          ... on MutationError {
+            message
+          }
+        }
+      }
+    `;
+
+    const input = { id };
+    if (text) input.text = text;
+    if (dueAt) {
+      input.dueAt = dueAt;
+    }
+    if (assets) {
+      input.assets = { images: assets };
+    }
+
+    const data = await request(mutation, { input });
+    if (!data || data.error) return data || { error: true, message: 'No response from API' };
+
+    const result = data.updatePost;
+    if (result?.post) {
+      localStorage.removeItem('postly_cache_posts');
+      return { post: result.post, success: true };
+    }
+    return { error: true, message: result?.message || 'Buffer rejected update' };
+  } catch (err) {
+    console.error('[updatePost] Fatal Error:', err);
+    return { error: true, message: err.message };
+  }
+};
+
+
+export const fetchPosts = async (orgId = ORG_ID, forceRefresh = false) => {
+  if (forceRefresh) {
+    localStorage.removeItem('postly_cache_posts');
+  } else {
+    const cached = getCachedData('posts');
+    if (cached) return cached;
+  }
 
   if (inFlightRequests.has('posts')) return inFlightRequests.get('posts');
 

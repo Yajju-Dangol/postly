@@ -14,10 +14,14 @@ import {
   HelpCircle,
   Maximize2,
   Trash2,
-  Paperclip
+  Paperclip,
+  RefreshCw
 } from 'lucide-react';
 import { publishPostWorkflow } from '../api/publishWorkflow';
-import { generateImage } from '../api/gemini';
+import { useAuthStore } from '../store/useAuthStore';
+import { useStudioStore } from '../store/useStudioStore';
+import { useCalendarStore } from '../store/useCalendarStore';
+import { supabase } from '../lib/supabase';
 import { GoogleGenAI } from "@google/genai";
 
 export function Compose({ onBack }) {
@@ -28,22 +32,42 @@ export function Compose({ onBack }) {
   const studioImage = useStore((state) => state.studioImage);
   const setStudioImage = useStore((state) => state.setStudioImage);
 
+  // Brand Details state from auth store
+  const brandDetails = useAuthStore((state) => state.brandDetails);
+
+  // Bind prompt & generation controls to useStudioStore
+  const prompt = useStudioStore((state) => state.prompt);
+  const setPrompt = useStudioStore((state) => state.setPrompt);
+  const stylePreset = useStudioStore((state) => state.stylePreset);
+  const setStylePreset = useStudioStore((state) => state.setStylePreset);
+  const aspectRatio = useStudioStore((state) => state.aspectRatio);
+  const setAspectRatio = useStudioStore((state) => state.setAspectRatio);
+  const isGeneratingImage = useStudioStore((state) => state.generating);
+  const generateGeminiImage = useStudioStore((state) => state.generateGeminiImage);
+  const isRenderingBrandBanner = useStudioStore((state) => state.renderingBrand);
+  const generateNanobananaBrandAsset = useStudioStore((state) => state.generateNanobananaBrandAsset);
+
   // States
   const [text, setText] = useState('');
   const [selectedChannels, setSelectedChannels] = useState([]);
-  const [mediaTab, setMediaTab] = useState('upload'); // 'upload' | 'generate'
+  const [mediaTab, setMediaTab] = useState('upload'); // 'upload' | 'generate' | 'brand'
   
   // Media states
   const [imageUrl, setImageUrl] = useState('');
   const [rawFile, setRawFile] = useState(null);
   const fileInputRef = useRef(null);
+  const isPublishingRef = useRef(false);
+  const isGeneratingImageRef = useRef(false);
+  const isRenderingBrandRef = useRef(false);
+  const isEnhancingCaptionRef = useRef(false);
 
-  // AI Image generation states
-  const [prompt, setPrompt] = useState('');
-  const [aspectRatio, setAspectRatio] = useState('1:1 (Square)');
-  const [stylePreset, setStylePreset] = useState('Photorealistic');
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [generatedBase64, setGeneratedBase64] = useState('');
+  // AI Image generation states (only local generated output review URL)
+  const [generatedImageUrl, setGeneratedImageUrl] = useState('');
+
+  // Brand banner preview and options
+  const [brandBannerTitle, setBrandBannerTitle] = useState('');
+  const [brandBannerSlogan, setBrandBannerSlogan] = useState('');
+  const [brandBannerPreview, setBrandBannerPreview] = useState('');
 
   // AI Caption Enhancer states
   const [aiSuggestions, setAiSuggestions] = useState([]);
@@ -57,6 +81,7 @@ export function Compose({ onBack }) {
   
   // Concurrency Guard
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRefreshingChannels, setIsRefreshingChannels] = useState(false);
 
   // Live Previews active tab
   const [previewTab, setPreviewTab] = useState('instagram');
@@ -108,53 +133,82 @@ export function Compose({ onBack }) {
     }
   };
 
-  // Trigger Gemini Image Generator
+  // Effect to initialize brand banner fields when brandDetails is fetched
+  useEffect(() => {
+    if (brandDetails) {
+      setBrandBannerTitle(brandDetails.name || '');
+      setBrandBannerSlogan(brandDetails.tagline || '');
+    }
+  }, [brandDetails]);
+
+  // Trigger Gemini Image Generator via store
   const handleImageGenerate = async () => {
+    if (isGeneratingImageRef.current) return;
     if (!prompt.trim()) {
       showToast('Please enter an image prompt first');
       return;
     }
 
-    setIsGeneratingImage(true);
+    isGeneratingImageRef.current = true;
     try {
-      const base64 = await generateImage(prompt, {
-        aspectRatio,
-        style: stylePreset
-      });
-      setGeneratedBase64(base64);
+      showToast('Invoking Gemini Image Engine...');
+      const url = await generateGeminiImage();
+      setGeneratedImageUrl(url);
       showToast('Image generated successfully! Click "Use Image" to attach.');
     } catch (err) {
       console.error(err);
       showToast(`Generation failed: ${err.message}`);
     } finally {
-      setIsGeneratingImage(false);
+      isGeneratingImageRef.current = false;
     }
   };
 
   // Use the generated AI Image in the post
   const handleUseGeneratedImage = () => {
-    if (generatedBase64) {
-      const dataUrl = `data:image/png;base64,${generatedBase64}`;
-      setImageUrl(dataUrl);
-      // Convert base64 to a raw file blob so Cloudinary can upload it
-      fetch(dataUrl)
+    if (generatedImageUrl) {
+      setImageUrl(generatedImageUrl);
+      // Convert base64/URL to a raw file blob so Cloudinary can upload it
+      fetch(generatedImageUrl)
         .then(res => res.blob())
         .then(blob => {
           const file = new File([blob], "ai_generated.png", { type: "image/png" });
           setRawFile(file);
         });
-      setGeneratedBase64('');
+      setGeneratedImageUrl('');
       showToast('AI Image attached to composer.');
+    }
+  };
+
+  // Trigger Nanobanana Brand Banner rendering via store
+  const handleRenderBrandBanner = async () => {
+    if (isRenderingBrandRef.current) return;
+    if (!brandBannerTitle.trim()) {
+      showToast('Please enter a banner title');
+      return;
+    }
+    isRenderingBrandRef.current = true;
+    try {
+      showToast('Rendering brand preset banner via Nanobanana...');
+      const url = await generateNanobananaBrandAsset(brandBannerTitle, brandBannerSlogan);
+      setBrandBannerPreview(url);
+      showToast('Brand banner created successfully!');
+    } catch (err) {
+      console.error(err);
+      showToast(`Rendering failed: ${err.message}`);
+    } finally {
+      isRenderingBrandRef.current = false;
     }
   };
 
   // Trigger Gemini Caption Enhancer
   const handleEnhanceCaption = async () => {
+    if (isEnhancingCaptionRef.current) return;
     if (!text.trim()) {
       showToast('Please type a caption draft first');
       return;
     }
 
+    isEnhancingCaptionRef.current = true;
     setIsEnhancingCaption(true);
     setSuggestionsOpen(true);
     try {
@@ -176,11 +230,13 @@ export function Compose({ onBack }) {
       setSuggestionsOpen(false);
     } finally {
       setIsEnhancingCaption(false);
+      isEnhancingCaptionRef.current = false;
     }
   };
 
   // Post Submission Pipeline
   const handlePublish = async () => {
+    if (isPublishingRef.current) return;
     if (!text.trim()) {
       showToast('Draft caption cannot be empty');
       return;
@@ -194,15 +250,38 @@ export function Compose({ onBack }) {
       return;
     }
 
+    isPublishingRef.current = true;
     setIsSubmitting(true);
+    let dbPost = null;
+    const user = useAuthStore.getState().user;
+    let finalDate = new Date();
+    if (scheduleMode === 'later') {
+      finalDate = new Date(`${scheduleDate}T${scheduleTime}`);
+    }
+
     try {
-      let finalDate = new Date();
-      if (scheduleMode === 'later') {
-        finalDate = new Date(`${scheduleDate}T${scheduleTime}`);
+      // 1. Insert record into Supabase automated_posts table with status 'ready_to_schedule'
+      if (user) {
+        const { data, error } = await supabase
+          .from('automated_posts')
+          .insert({
+            user_id: user.id,
+            text,
+            scheduled_for: finalDate.toISOString(),
+            status: 'ready_to_schedule',
+            media_url: imageUrl || '',
+            channel_ids: selectedChannels,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        dbPost = data;
       }
 
       showToast('Uploading assets and scheduling. Please wait...');
       
+      // 2. Call the sequential Buffer publishing pipeline
       const result = await publishPostWorkflow({
         text,
         selectedChannels,
@@ -214,19 +293,84 @@ export function Compose({ onBack }) {
       });
 
       if (result.success) {
+        // 3. On success, update record status to 'queued' and save the buffer_post_id
+        if (user && dbPost) {
+          const { error: updateErr } = await supabase
+            .from('automated_posts')
+            .update({
+              status: 'queued',
+              buffer_post_id: result.bufferPostId,
+              media_url: result.mediaUrl || dbPost.media_url,
+            })
+            .eq('id', dbPost.id);
+          if (updateErr) console.error('Failed to update post status in DB:', updateErr);
+        } else if (!user) {
+          // Dev bypass fallback
+          await useCalendarStore.getState().createAutomatedPost({
+            text,
+            scheduled_for: finalDate.toISOString(),
+            status: 'queued',
+            media_url: imageUrl || '',
+            channel_ids: selectedChannels,
+            buffer_post_id: result.bufferPostId || `mock_buffer_${Date.now()}`
+          });
+        }
+
+        // Refresh stores
+        await useCalendarStore.getState().loadCalendarPosts();
+        
         showToast('Success! Post scheduled successfully.');
         setStudioImage(null);
         setTimeout(() => {
           onBack();
         }, 1500);
       } else {
+        // 4. On failure, log the error and mark the post as 'error'
+        if (user && dbPost) {
+          await supabase
+            .from('automated_posts')
+            .update({ status: 'error' })
+            .eq('id', dbPost.id);
+
+          await supabase.from('error_logs').insert({
+            user_id: user.id,
+            summary: `Publish failed for post ${dbPost.id}`,
+            details: result.message || 'Unknown Buffer publishing error',
+            timestamp: new Date().toISOString()
+          });
+
+          await useCalendarStore.getState().loadErrorLogs();
+          await useCalendarStore.getState().loadCalendarPosts();
+        }
         showToast(`Post failed: ${result.message}`);
       }
     } catch (err) {
       console.error(err);
+      // 4. On fatal exception/failure, log to error_logs and mark post as 'error'
+      if (user && dbPost) {
+        try {
+          await supabase
+            .from('automated_posts')
+            .update({ status: 'error' })
+            .eq('id', dbPost.id);
+
+          await supabase.from('error_logs').insert({
+            user_id: user.id,
+            summary: `Fatal error publishing post ${dbPost.id}`,
+            details: err.message || 'Unknown fatal exception',
+            timestamp: new Date().toISOString()
+          });
+
+          await useCalendarStore.getState().loadErrorLogs();
+          await useCalendarStore.getState().loadCalendarPosts();
+        } catch (dbErr) {
+          console.error('Failed to log fatal error to DB:', dbErr);
+        }
+      }
       showToast(`Error: ${err.message}`);
     } finally {
       setIsSubmitting(false);
+      isPublishingRef.current = false;
     }
   };
 
@@ -302,12 +446,28 @@ export function Compose({ onBack }) {
           <div className="p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">1. Select Platforms</span>
-              <button 
-                onClick={handleSelectAll}
-                className="text-[10px] text-brand-purple font-semibold hover:underline cursor-pointer font-mono"
-              >
-                {selectedChannels.length === channels.length ? 'Deselect All' : 'Select All'}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={async () => {
+                    setIsRefreshingChannels(true);
+                    await loadChannels(true);
+                    setIsRefreshingChannels(false);
+                    showToast('Channels refreshed successfully');
+                  }}
+                  disabled={isRefreshingChannels}
+                  className="flex items-center gap-1.5 text-[10px] text-zinc-400 hover:text-brand-purple font-semibold cursor-pointer font-mono transition-colors disabled:opacity-50"
+                  title="Refresh channels from Buffer"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isRefreshingChannels ? 'animate-spin' : ''}`} />
+                  Refresh
+                </button>
+                <button 
+                  onClick={handleSelectAll}
+                  className="text-[10px] text-brand-purple font-semibold hover:underline cursor-pointer font-mono"
+                >
+                  {selectedChannels.length === channels.length ? 'Deselect All' : 'Select All'}
+                </button>
+              </div>
             </div>
 
             {isLoadingChannels ? (
@@ -457,6 +617,15 @@ export function Compose({ onBack }) {
                   <Sparkles className="w-3 h-3" />
                   <span>Generate with AI</span>
                 </button>
+                <button
+                  onClick={() => setMediaTab('brand')}
+                  className={`px-3 py-1 text-[10px] font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                    mediaTab === 'brand' ? 'bg-indigo-500/10 text-indigo-400' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  <ImageIcon className="w-3 h-3" />
+                  <span>Brand Banner</span>
+                </button>
               </div>
             </div>
 
@@ -524,9 +693,9 @@ export function Compose({ onBack }) {
                       onChange={(e) => setAspectRatio(e.target.value)}
                       className="w-full bg-zinc-950 border border-white/5 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-purple"
                     >
-                      {['1:1 (Square)', '4:5 (Portrait)', '16:9 (Landscape)'].map(r => (
-                        <option key={r} value={r}>{r}</option>
-                      ))}
+                      <option value="1:1">1:1 (Square)</option>
+                      <option value="4:5">4:5 (Portrait)</option>
+                      <option value="16:9">16:9 (Landscape)</option>
                     </select>
                   </div>
 
@@ -537,7 +706,7 @@ export function Compose({ onBack }) {
                       onChange={(e) => setStylePreset(e.target.value)}
                       className="w-full bg-zinc-950 border border-white/5 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-purple"
                     >
-                      {['Photorealistic', 'Minimalist', '3D Render', 'watercolor', 'Illustration'].map(s => (
+                      {['Photorealistic', 'Minimalist', '3D Render', 'Watercolor', 'Illustration'].map(s => (
                         <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
@@ -573,18 +742,18 @@ export function Compose({ onBack }) {
                   </div>
                 )}
 
-                {generatedBase64 && !isGeneratingImage && (
+                {generatedImageUrl && !isGeneratingImage && (
                   <div className="p-4 rounded-2xl bg-zinc-950 border border-white/5 space-y-4">
                     <div className="relative rounded-xl overflow-hidden border border-white/5 bg-black">
                       <img 
-                        src={`data:image/png;base64,${generatedBase64}`} 
+                        src={generatedImageUrl} 
                         alt="AI Generation output" 
                         className="w-full max-h-[220px] object-contain mx-auto" 
                       />
                     </div>
                     <div className="flex justify-end gap-2">
                       <button
-                        onClick={() => setGeneratedBase64('')}
+                        onClick={() => setGeneratedImageUrl('')}
                         className="btn-premium py-2 px-4 text-xs border-white/5 text-zinc-400 hover:text-white"
                       >
                         Regenerate
@@ -594,6 +763,88 @@ export function Compose({ onBack }) {
                         className="btn-accent py-2 px-4 text-xs"
                       >
                         Use Image in Post
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB CONTENT: BRAND BANNER (NANOBANANA) */}
+            {mediaTab === 'brand' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Banner Title</label>
+                    <input
+                      type="text"
+                      value={brandBannerTitle}
+                      onChange={(e) => setBrandBannerTitle(e.target.value)}
+                      placeholder="e.g. Mountain Peak Co."
+                      className="w-full bg-zinc-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Banner Slogan</label>
+                    <input
+                      type="text"
+                      value={brandBannerSlogan}
+                      onChange={(e) => setBrandBannerSlogan(e.target.value)}
+                      placeholder="e.g. Elevate Your Journey"
+                      className="w-full bg-zinc-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-1.5 items-center">
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide mr-1">Brand Colors:</span>
+                    {brandDetails?.colors?.map((c, i) => (
+                      <span key={i} className="w-3.5 h-3.5 rounded-full border border-white/10" style={{ backgroundColor: c }} />
+                    ))}
+                  </div>
+                  <button
+                    onClick={handleRenderBrandBanner}
+                    disabled={isRenderingBrandBanner}
+                    className="btn-accent py-2 px-4 text-indigo-400 bg-indigo-500/10 border-indigo-500/20 hover:bg-indigo-500/20 text-xs font-semibold"
+                  >
+                    {isRenderingBrandBanner ? 'Rendering...' : 'Render Brand Banner'}
+                  </button>
+                </div>
+
+                {/* Show rendered brand banner preview */}
+                {isRenderingBrandBanner && (
+                  <div className="h-[220px] rounded-2xl bg-zinc-950 border border-white/5 flex flex-col items-center justify-center space-y-3">
+                    <div className="w-8 h-8 border-2 border-white/10 border-t-brand-purple rounded-full animate-spin" />
+                    <span className="text-zinc-500 text-xs font-semibold">Compiling brand layout via Nanobanana...</span>
+                  </div>
+                )}
+
+                {brandBannerPreview && !isRenderingBrandBanner && (
+                  <div className="p-4 rounded-2xl bg-zinc-950 border border-white/5 space-y-4">
+                    <div className="relative rounded-xl overflow-hidden border border-white/5 bg-black">
+                      <img 
+                        src={brandBannerPreview} 
+                        alt="Nanobanana Brand Banner" 
+                        className="w-full max-h-[220px] object-contain mx-auto" 
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => {
+                          setImageUrl(brandBannerPreview);
+                          // Convert data URL to a raw file blob so Cloudinary can upload it
+                          fetch(brandBannerPreview)
+                            .then(res => res.blob())
+                            .then(blob => {
+                              const file = new File([blob], "brand_banner.png", { type: "image/png" });
+                              setRawFile(file);
+                            });
+                          showToast('Brand Banner attached to composer.');
+                        }}
+                        className="btn-accent py-2 px-4 text-xs"
+                      >
+                        Use Banner in Post
                       </button>
                     </div>
                   </div>

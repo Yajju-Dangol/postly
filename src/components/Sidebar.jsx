@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { 
   LayoutDashboard, 
   PenSquare, 
@@ -21,8 +22,8 @@ import { clearTokens } from '../utils/auth';
 export function Sidebar() {
   const activeTab = useStore((state) => state.activeTab);
   const setActiveTab = useStore((state) => state.setActiveTab);
-  const setIsAuthenticated = useStore((state) => state.setIsAuthenticated);
   const channels = useStore((state) => state.channels);
+  const { user, signOut: authSignOut } = useAuthStore();
 
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -30,7 +31,7 @@ export function Sidebar() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'compose', label: 'Create Post', icon: PenSquare },
     { id: 'posts', label: 'Posts', icon: FolderHeart, badge: 'Soon' },
-    { id: 'calendar', label: 'Calendar', icon: Calendar, badge: 'Soon' },
+    { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'analytics', label: 'Analytics', icon: BarChart3, badge: 'Soon' },
     { id: 'studio', label: 'Creative Studio', icon: Sparkles, highlight: true },
     { id: 'media', label: 'Media Library', icon: Image, badge: 'Soon' },
@@ -38,9 +39,9 @@ export function Sidebar() {
     { id: 'brand', label: 'Settings', icon: Settings },
   ];
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     clearTokens();
-    setIsAuthenticated(false);
+    await authSignOut();
   };
 
   return (
@@ -144,11 +145,11 @@ export function Sidebar() {
           >
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-brand-purple/20 border border-brand-purple/30 text-brand-purple flex items-center justify-center font-semibold text-sm">
-                A
+                {user?.user_metadata?.full_name?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
               </div>
               <div className="text-left">
-                <p className="text-xs font-semibold text-white truncate max-w-[120px]">Alex Johnson</p>
-                <p className="text-[10px] text-zinc-500 truncate max-w-[120px]">alex@example.com</p>
+                <p className="text-xs font-semibold text-white truncate max-w-[120px]">{user?.user_metadata?.full_name || 'Developer'}</p>
+                <p className="text-[10px] text-zinc-500 truncate max-w-[120px]">{user?.email || 'dev@postly.local'}</p>
               </div>
             </div>
             <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-300 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />

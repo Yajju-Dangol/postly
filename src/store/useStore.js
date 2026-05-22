@@ -49,10 +49,10 @@ export const useStore = create((set, get) => ({
     });
   },
 
-  loadChannels: async () => {
+  loadChannels: async (forceRefresh = false) => {
     set({ isLoadingChannels: true });
     try {
-      const c = await fetchChannels();
+      const c = await fetchChannels(undefined, forceRefresh);
       set({ channels: c });
     } catch (err) {
       console.error('loadChannels Error:', err);
@@ -62,10 +62,10 @@ export const useStore = create((set, get) => ({
     }
   },
 
-  loadPosts: async () => {
+  loadPosts: async (forceRefresh = false) => {
     set({ isLoadingPosts: true });
     try {
-      const p = await fetchPosts();
+      const p = await fetchPosts(undefined, forceRefresh);
       set({ posts: p });
     } catch (err) {
       console.error('loadPosts Error:', err);
@@ -75,10 +75,13 @@ export const useStore = create((set, get) => ({
     }
   },
 
-  loadAllData: async () => {
+  loadAllData: async (forceRefresh = false) => {
     set({ isLoadingChannels: true, isLoadingPosts: true });
     try {
-      const [c, p] = await Promise.all([fetchChannels(), fetchPosts()]);
+      const [c, p] = await Promise.all([
+        fetchChannels(undefined, forceRefresh),
+        fetchPosts(undefined, forceRefresh)
+      ]);
       set({ channels: c, posts: p });
     } catch (err) {
       console.error('loadAllData Error:', err);

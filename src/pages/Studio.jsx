@@ -1,68 +1,44 @@
-import React, { useState } from 'react';
+import React, { useRef } from 'react';
 import { useStore } from '../store/useStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { useStudioStore } from '../store/useStudioStore';
 import { 
   Sparkles, 
-  ArrowLeft, 
   Download, 
   PlusCircle, 
-  Compass, 
   Image as ImageIcon, 
-  Smile, 
-  Sliders, 
-  Scissors, 
-  RefreshCcw, 
-  Type, 
-  Check, 
   Lock,
-  Layers
+  Layers,
+  Sliders,
+  Scissors,
+  RefreshCcw,
+  Type
 } from 'lucide-react';
-import { generateImage } from '../api/gemini';
 
 export function Studio({ onBack, onSelectImage }) {
   const showToast = useStore((state) => state.showToast);
-  const brandDetails = useStore((state) => state.brandDetails);
+  const brandDetails = useAuthStore((state) => state.brandDetails);
 
-  // States
-  const [prompt, setPrompt] = useState('');
-  const [stylePreset, setStylePreset] = useState('Photorealistic');
-  const [aspectRatio, setAspectRatio] = useState('1:1');
-  const [credits, setCredits] = useState(2450);
-  const [generating, setGenerating] = useState(false);
+  const isGeneratingImageRef = useRef(false);
+  const isRenderingBrandRef = useRef(false);
 
-  // Grid selection
-  const [selectedImage, setSelectedImage] = useState(0);
-
-  // Mock initial creations (beautiful high-end landscape and abstract prompts to populate UI)
-  const [gallery, setGallery] = useState([
-    {
-      id: 0,
-      url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
-      prompt: 'Modern coffee shop aesthetic with cinematic lighting and minimalist branding.',
-      aspectRatio: '1:1',
-      style: 'Photorealistic'
-    },
-    {
-      id: 1,
-      url: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=800&q=80',
-      prompt: 'Abstract liquid neon metal flows, violet and royal purple light hues.',
-      aspectRatio: '1:1',
-      style: 'Minimalist'
-    },
-    {
-      id: 2,
-      url: 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&w=800&q=80',
-      prompt: 'Sleek dark fitness center, neon green highlights, motivating typography.',
-      aspectRatio: '1:1',
-      style: 'Modern Brand Style'
-    },
-    {
-      id: 3,
-      url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=800&q=80',
-      prompt: 'Cyberpunk street view, glowing holograms, cinematic light, watercolor style.',
-      aspectRatio: '1:1',
-      style: 'Watercolor'
-    }
-  ]);
+  // Bind to useStudioStore
+  const {
+    prompt,
+    stylePreset,
+    aspectRatio,
+    credits,
+    generating,
+    renderingBrand,
+    gallery,
+    selectedImageId,
+    setPrompt,
+    setStylePreset,
+    setAspectRatio,
+    setSelectedImageId,
+    generateGeminiImage,
+    generateNanobananaBrandAsset
+  } = useStudioStore();
 
   const handleSurpriseMe = () => {
     const prompts = [
@@ -76,45 +52,41 @@ export function Studio({ onBack, onSelectImage }) {
   };
 
   const handleGenerate = async () => {
+    if (isGeneratingImageRef.current) return;
     if (!prompt.trim()) {
       showToast('Please specify what image you want to generate');
       return;
     }
-    if (credits < 10) {
-      showToast('Insufficient credits. Please upgrade your tier.');
-      return;
-    }
-
-    setGenerating(true);
+    isGeneratingImageRef.current = true;
     try {
       showToast('Invoking Gemini Image Engine...');
-      const base64 = await generateImage(prompt, {
-        aspectRatio,
-        style: stylePreset
-      });
-
-      const newImage = {
-        id: gallery.length,
-        url: `data:image/png;base64,${base64}`,
-        prompt,
-        aspectRatio,
-        style: stylePreset
-      };
-
-      setGallery([newImage, ...gallery]);
-      setSelectedImage(0);
-      setCredits(prev => prev - 10);
+      await generateGeminiImage();
       showToast('Successfully generated! Added to grid.');
     } catch (err) {
       console.error(err);
       showToast(`Error: ${err.message}`);
     } finally {
-      setGenerating(false);
+      isGeneratingImageRef.current = false;
+    }
+  };
+
+  const handleRenderBrandBanner = async () => {
+    if (isRenderingBrandRef.current) return;
+    isRenderingBrandRef.current = true;
+    try {
+      showToast('Rendering brand preset banner via Nanobanana...');
+      await generateNanobananaBrandAsset(brandDetails.name, brandDetails.tagline);
+      showToast('Brand banner created! Added to grid.');
+    } catch (err) {
+      console.error(err);
+      showToast(`Rendering failed: ${err.message}`);
+    } finally {
+      isRenderingBrandRef.current = false;
     }
   };
 
   const handleDownload = () => {
-    const current = gallery.find(g => g.id === selectedImage);
+    const current = gallery.find(g => g.id === selectedImageId) || gallery[0];
     if (!current) return;
     
     const link = document.createElement('a');
@@ -127,14 +99,14 @@ export function Studio({ onBack, onSelectImage }) {
   };
 
   const handleUseInPost = () => {
-    const current = gallery.find(g => g.id === selectedImage);
+    const current = gallery.find(g => g.id === selectedImageId) || gallery[0];
     if (!current) return;
 
     onSelectImage(current.url);
     showToast('Applied image to composer draft.');
   };
 
-  const activeImageObj = gallery.find(g => g.id === selectedImage) || gallery[0];
+  const activeImageObj = gallery.find(g => g.id === selectedImageId) || gallery[0];
 
   return (
     <div className="pl-[240px] min-h-screen bg-black text-white p-10 animate-fade-in-up">
@@ -165,7 +137,7 @@ export function Studio({ onBack, onSelectImage }) {
       {/* Main Studio Panels (Split Column Grid) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
         
-        {/* PANEL 1: AI Prompt Controls (Col Span 3) */}
+        {/* PANEL 1: AI Prompt Controls (Col Span 4) */}
         <div className="xl:col-span-4 p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-6">
           <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">1. Prompt Settings</span>
 
@@ -235,15 +207,26 @@ export function Studio({ onBack, onSelectImage }) {
             </div>
           </div>
 
-          {/* Generate trigger */}
-          <button
-            onClick={handleGenerate}
-            disabled={generating || !prompt.trim()}
-            className="w-full btn-accent py-3.5 text-xs font-semibold gap-1.5"
-          >
-            <Sparkles className="w-4 h-4 fill-white/10" />
-            <span>{generating ? 'Generating AI Art...' : 'Generate Art (10 credits)'}</span>
-          </button>
+          {/* Actions grid */}
+          <div className="space-y-3 pt-2">
+            <button
+              onClick={handleGenerate}
+              disabled={generating || renderingBrand || !prompt.trim()}
+              className="w-full btn-accent py-3.5 text-xs font-semibold gap-1.5"
+            >
+              <Sparkles className="w-4 h-4 fill-white/10" />
+              <span>{generating ? 'Generating AI Art...' : 'Generate Art (10 credits)'}</span>
+            </button>
+
+            <button
+              onClick={handleRenderBrandBanner}
+              disabled={generating || renderingBrand}
+              className="w-full btn-premium py-3 text-xs font-semibold gap-1.5 border border-white/5 bg-zinc-950/80 hover:bg-zinc-900"
+            >
+              <Layers className="w-4 h-4 text-brand-purple" />
+              <span>{renderingBrand ? 'Rendering Brand Asset...' : 'Render Brand Banner (15 credits)'}</span>
+            </button>
+          </div>
         </div>
 
         {/* PANEL 2: Bento Results Grid (Col Span 5) */}
@@ -253,20 +236,22 @@ export function Studio({ onBack, onSelectImage }) {
           {/* Grid layout */}
           <div className="grid grid-cols-2 gap-4">
             
-            {/* Show generator item placeholder if generating */}
-            {generating && (
+            {/* Show generator item placeholder if generating or rendering */}
+            {(generating || renderingBrand) && (
               <div className="col-span-1 aspect-square rounded-2xl bg-zinc-950 border border-white/5 flex flex-col items-center justify-center space-y-2 text-center p-3 animate-pulse">
                 <div className="w-6 h-6 border-2 border-white/10 border-t-brand-purple rounded-full animate-spin" />
-                <span className="text-[10px] text-zinc-500 font-semibold font-mono uppercase">Creating...</span>
+                <span className="text-[10px] text-zinc-500 font-semibold font-mono uppercase">
+                  {generating ? 'Creating...' : 'Rendering...'}
+                </span>
               </div>
             )}
 
             {gallery.map((img) => (
               <div 
                 key={img.id}
-                onClick={() => setSelectedImage(img.id)}
+                onClick={() => setSelectedImageId(img.id)}
                 className={`aspect-square rounded-2xl overflow-hidden border cursor-pointer relative group transition-all duration-300 ${
-                  selectedImage === img.id 
+                  selectedImageId === img.id 
                     ? 'border-brand-purple shadow-md shadow-brand-purple/15' 
                     : 'border-white/5 hover:border-zinc-800'
                 }`}
@@ -280,7 +265,7 @@ export function Studio({ onBack, onSelectImage }) {
           </div>
         </div>
 
-        {/* PANEL 3: Focused Detail Viewer (Col Span 4) */}
+        {/* PANEL 3: Focused Detail Viewer (Col Span 3) */}
         <div className="xl:col-span-3 p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-6">
           <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">3. Inspector Panel</span>
 
@@ -360,7 +345,7 @@ export function Studio({ onBack, onSelectImage }) {
             <div className="h-[300px] border border-dashed border-white/5 rounded-2xl flex flex-col items-center justify-center text-center p-6 text-zinc-500">
               <ImageIcon className="w-10 h-10 mb-2.5 text-zinc-700 animate-pulse" />
               <p className="text-xs font-semibold">No active selection</p>
-              <p className="text-[10px] text-zinc-600 mt-0.5">Select a grid card template to view analytics logs details.</p>
+              <p className="text-[10px] text-zinc-600 mt-0.5">Select a grid card template to view details.</p>
             </div>
           )}
         </div>
