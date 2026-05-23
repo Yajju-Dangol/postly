@@ -4,13 +4,7 @@ import { fetchChannels, fetchPosts } from '../api/buffer';
 export const useStore = create((set, get) => ({
   // Navigation & UI State
   activeTab: 'dashboard',
-  setActiveTab: (tab) => {
-    if (tab === 'compose') {
-      set({ activeTab: tab, studioImage: null });
-    } else {
-      set({ activeTab: tab });
-    }
-  },
+  setActiveTab: (tab) => set({ activeTab: tab }),
   
   studioImage: null,
   setStudioImage: (img) => set({ studioImage: img }),
@@ -57,7 +51,7 @@ export const useStore = create((set, get) => ({
   loadChannels: async (forceRefresh = false) => {
     set({ isLoadingChannels: true });
     try {
-      const c = await fetchChannels(undefined, forceRefresh);
+      const c = await fetchChannels(forceRefresh);
       set({ channels: c });
     } catch (err) {
       console.error('loadChannels Error:', err);
@@ -70,7 +64,7 @@ export const useStore = create((set, get) => ({
   loadPosts: async (forceRefresh = false) => {
     set({ isLoadingPosts: true });
     try {
-      const p = await fetchPosts(undefined, forceRefresh);
+      const p = await fetchPosts(forceRefresh);
       set({ posts: p });
     } catch (err) {
       console.error('loadPosts Error:', err);
@@ -84,8 +78,8 @@ export const useStore = create((set, get) => ({
     set({ isLoadingChannels: true, isLoadingPosts: true });
     try {
       const [c, p] = await Promise.all([
-        fetchChannels(undefined, forceRefresh),
-        fetchPosts(undefined, forceRefresh)
+        fetchChannels(forceRefresh),
+        fetchPosts(forceRefresh)
       ]);
       set({ channels: c, posts: p });
     } catch (err) {

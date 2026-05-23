@@ -56,8 +56,7 @@ export const publishPostWorkflow = async ({
         mode, 
         dueAt,
         assets,
-        // Instagram specific requirement
-        type: channel?.service === 'instagram' ? 'post' : null
+        service: channel?.service || null
       });
       
       if (result?.error) {

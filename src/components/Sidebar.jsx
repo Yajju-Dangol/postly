@@ -15,11 +15,12 @@ import {
   LogOut,
   ChevronDown,
   User,
-  Zap
+  Zap,
+  X
 } from 'lucide-react';
 import { clearTokens } from '../utils/auth';
 
-export function Sidebar() {
+export function Sidebar({ isOpen, onClose }) {
   const activeTab = useStore((state) => state.activeTab);
   const setActiveTab = useStore((state) => state.setActiveTab);
   const channels = useStore((state) => state.channels);
@@ -45,9 +46,28 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-[240px] bg-black border-r border-white/5 flex flex-col justify-between z-50">
-      {/* Upper Navigation Section */}
-      <div className="flex flex-col flex-1 px-4 pt-6 overflow-y-auto">
+    <>
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+      
+      <aside className={`fixed left-0 top-0 bottom-0 w-[240px] bg-black border-r border-white/5 flex flex-col justify-between z-50 transition-transform duration-300 lg:translate-x-0 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        {/* Mobile close button */}
+        <button 
+          onClick={onClose}
+          className="absolute top-4 right-4 lg:hidden p-2 rounded-lg hover:bg-white/5 transition-colors"
+        >
+          <X className="w-5 h-5 text-zinc-400" />
+        </button>
+        
+        {/* Upper Navigation Section */}
+        <div className="flex flex-col flex-1 px-4 pt-6 overflow-y-auto">
         {/* Brand Logo & Title */}
         <div className="flex items-center gap-3 px-3 mb-8 cursor-pointer group" onClick={() => setActiveTab('dashboard')}>
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-indigo to-brand-purple flex items-center justify-center shadow-lg shadow-brand-purple/20 group-hover:scale-105 transition-all">
@@ -74,7 +94,7 @@ export function Sidebar() {
                   }
                 }}
                 disabled={item.badge === 'Soon'}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 relative group cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-300 relative group cursor-pointer ${
                   isActive 
                     ? 'text-white bg-white/5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]' 
                     : item.badge === 'Soon'
@@ -185,7 +205,8 @@ export function Sidebar() {
             </>
           )}
         </div>
-      </div>
-    </aside>
+        </div>
+      </aside>
+    </>
   );
 }

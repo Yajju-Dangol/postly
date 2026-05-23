@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { uploadToCloudinary } from '../api/cloudinary';
 import { 
   Building2, 
   Sparkles, 
@@ -21,6 +22,8 @@ export function BusinessDetails() {
   const showToast = useStore((state) => state.showToast);
 
   const isSavingRef = useRef(false);
+  const isUploadingLogoRef = useRef(false);
+  const logoInputRef = useRef(null);
 
   // Form states initialized from store values
   const [name, setName] = useState(brandDetails.name || 'Mountain Peak Co.');
@@ -29,8 +32,14 @@ export function BusinessDetails() {
   const [tone, setTone] = useState(brandDetails.tone || 'Inspirational, Adventurous, Trustworthy');
   const [colors, setColors] = useState(brandDetails.colors || ['#001b2a', '#f97316', '#0d1b2a']);
   const [activeColorIdx, setActiveColorIdx] = useState(0);
+  const [logoUrl, setLogoUrl] = useState(brandDetails.logoUrl || '');
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [basePrompt, setBasePrompt] = useState(brandDetails.basePrompt || 'A highly professional, premium image.');
   const [description, setDescription] = useState(brandDetails.description || 'We inspire and equip adventurers to explore the world’s most breathtaking places. Quality gear, expert advice.');
+  const [bufferApiKey, setBufferApiKey] = useState(brandDetails.bufferApiKey || '');
+  const [bufferOrgId, setBufferOrgId] = useState(brandDetails.bufferOrgId || '');
+  const [bufferClientId, setBufferClientId] = useState(brandDetails.bufferClientId || '');
+  const [bufferApiUrl, setBufferApiUrl] = useState(brandDetails.bufferApiUrl || '');
 
   // Load from DB on mount
   useEffect(() => {
@@ -44,6 +53,7 @@ export function BusinessDetails() {
     setIndustry(brandDetails.industry || 'Technology');
     setTone(brandDetails.tone || 'Professional and modern');
     setColors(brandDetails.colors || ['#001b2a', '#f97316', '#0d1b2a']);
+    setLogoUrl(brandDetails.logoUrl || '');
     setBasePrompt(brandDetails.basePrompt || 'A highly professional, premium image.');
     setDescription(brandDetails.description || '');
   }, [brandDetails]);
@@ -58,8 +68,13 @@ export function BusinessDetails() {
         industry,
         tone,
         colors,
+        logoUrl,
         basePrompt,
-        description
+        description,
+        bufferApiKey,
+        bufferOrgId,
+        bufferClientId,
+        bufferApiUrl
       });
       showToast('Brand Identity Profile saved & synced! ✨');
     } catch (err) {
@@ -76,14 +91,57 @@ export function BusinessDetails() {
     setColors(updated);
   };
 
+  const handleLogoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || isUploadingLogoRef.current) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Please upload a JPG or PNG logo file');
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Logo must be under 2MB');
+      return;
+    }
+
+    isUploadingLogoRef.current = true;
+    setIsUploadingLogo(true);
+    try {
+      showToast('Uploading logo to cloud...');
+      const uploadedLogoUrl = await uploadToCloudinary(file);
+      setLogoUrl(uploadedLogoUrl);
+
+      await setBrandDetails({
+        name,
+        tagline,
+        industry,
+        tone,
+        colors,
+        logoUrl: uploadedLogoUrl,
+        basePrompt,
+        description
+      });
+
+      showToast('Logo uploaded and saved.');
+    } catch (err) {
+      console.error(err);
+      showToast(`Logo upload failed: ${err.message}`);
+    } finally {
+      setIsUploadingLogo(false);
+      isUploadingLogoRef.current = false;
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    }
+  };
+
 
   return (
-    <div className="pl-[240px] min-h-screen bg-black text-white p-10 animate-fade-in-up">
+    <div className="pl-0 lg:pl-[240px] pt-20 lg:pt-10 min-h-screen bg-black text-white px-4 sm:px-6 lg:pr-10 pb-10 animate-fade-in-up">
       
       {/* Page Header */}
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+        <div className="text-center sm:text-left">
+          <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2 justify-center sm:justify-start">
             Business Details <Building2 className="w-5 h-5 text-brand-purple" />
           </h2>
           <p className="text-zinc-500 text-xs mt-1">Configure your corporate brand guidelines, logos, colors, and tone to align AI outputs.</p>
@@ -105,7 +163,7 @@ export function BusinessDetails() {
         <div className="xl:col-span-8 space-y-6">
           
           {/* Section 1: Business Identity */}
-          <div className="p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-5">
+          <div className="p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-5">
             <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">1. Business Information</span>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -174,7 +232,7 @@ export function BusinessDetails() {
           </div>
 
           {/* Section 2: Logo and Visual System */}
-          <div className="p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-5">
+          <div className="p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-5">
             <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">2. Brand Assets & Visual Colors</span>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center">
@@ -182,17 +240,30 @@ export function BusinessDetails() {
               {/* Logo block */}
               <div className="flex gap-4 items-center">
                 <div className="w-16 h-16 rounded-2xl bg-zinc-950 border border-white/5 flex items-center justify-center relative shadow group shrink-0 overflow-hidden">
-                  <div className="w-10 h-10 rounded-full bg-brand-purple/20 flex items-center justify-center font-bold text-brand-purple">
-                    MP
-                  </div>
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="Brand logo" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-brand-purple/20 flex items-center justify-center font-bold text-brand-purple">
+                      {(name || 'B').slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <button 
-                    onClick={() => showToast('Logo uploader triggered (Mock)')}
+                    type="button"
+                    onClick={() => logoInputRef.current?.click()}
+                    disabled={isUploadingLogo}
                     className="btn-premium py-1.5 px-3 text-[10px] border-white/5 hover:border-zinc-700"
                   >
-                    Change Logo
+                    {isUploadingLogo ? 'Uploading...' : logoUrl ? 'Change Logo' : 'Upload Logo'}
                   </button>
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg"
+                    onChange={handleLogoChange}
+                    className="hidden"
+                  />
                   <p className="text-[9px] text-zinc-500">Supports JPG, PNG. Maximum size 2MB.</p>
                 </div>
               </div>
@@ -231,7 +302,7 @@ export function BusinessDetails() {
           </div>
 
           {/* Section 3: AI Customization instructions */}
-          <div className="p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
+          <div className="p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
             <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">3. AI Base Prompts Adaptation</span>
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Brand Base Prompt Instruction</label>
@@ -248,13 +319,70 @@ export function BusinessDetails() {
             </div>
           </div>
 
+          {/* Section 4: Buffer API Configuration */}
+          <div className="p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
+            <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">4. Buffer API Configuration</span>
+            <p className="text-[10px] text-zinc-500">Configure your Buffer API credentials for this business. These will be used for all social media scheduling operations.</p>
+            
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Buffer API Key</label>
+                <input
+                  type="password"
+                  value={bufferApiKey}
+                  onChange={(e) => setBufferApiKey(e.target.value)}
+                  placeholder="Enter your Buffer API key"
+                  className="w-full bg-zinc-950 border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-purple"
+                />
+              </div>
+              
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Buffer Organization ID</label>
+                <input
+                  type="text"
+                  value={bufferOrgId}
+                  onChange={(e) => setBufferOrgId(e.target.value)}
+                  placeholder="Enter your Buffer organization ID"
+                  className="w-full bg-zinc-950 border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-purple"
+                />
+              </div>
+              
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Buffer Client ID (Optional)</label>
+                <input
+                  type="text"
+                  value={bufferClientId}
+                  onChange={(e) => setBufferClientId(e.target.value)}
+                  placeholder="Enter your Buffer client ID (if using OAuth)"
+                  className="w-full bg-zinc-950 border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-purple"
+                />
+              </div>
+              
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Buffer API URL (Optional)</label>
+                <input
+                  type="text"
+                  value={bufferApiUrl}
+                  onChange={(e) => setBufferApiUrl(e.target.value)}
+                  placeholder="https://api.buffer.com/v2/graphql (default)"
+                  className="w-full bg-zinc-950 border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-purple"
+                />
+              </div>
+              
+              <div className="flex items-center gap-2 text-[10px] text-zinc-500 leading-relaxed font-medium bg-zinc-950/80 p-3.5 rounded-xl border border-white/[0.02]">
+                <Info className="w-4 h-4 text-brand-purple shrink-0" />
+                <span>These credentials are stored securely in your Supabase database and used for all Buffer API calls specific to this business.</span>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         {/* RIGHT COLUMN: BRAND PREVIEWS & SUMMARIES (Col Span 5) */}
         <div className="xl:col-span-4 lg:sticky lg:top-6 space-y-6">
           
           {/* Brand Preview panel */}
-          <div className="p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
+          <div className="p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
             <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">Brand Preview</span>
             <p className="text-[10px] text-zinc-500">This is how your brand attributes will be adapted inside AI output creations.</p>
 
@@ -265,8 +393,12 @@ export function BusinessDetails() {
               <div className="h-1 rounded-full w-full" style={{ backgroundColor: colors[0] }} />
 
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded bg-brand-purple/20 flex items-center justify-center font-bold text-xs text-brand-purple">
-                  MP
+                <div className="w-7 h-7 rounded bg-brand-purple/20 flex items-center justify-center font-bold text-xs text-brand-purple overflow-hidden">
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="Brand logo" className="w-full h-full object-cover" />
+                  ) : (
+                    (name || 'B').slice(0, 2).toUpperCase()
+                  )}
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-white">{name}</h4>
@@ -293,7 +425,7 @@ export function BusinessDetails() {
           </div>
 
           {/* Brand Summary Specs List */}
-          <div className="p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
+          <div className="p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
             <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">Brand Summary</span>
             
             <div className="p-4 bg-zinc-950 rounded-2xl border border-white/5 space-y-3.5 text-xs font-medium">

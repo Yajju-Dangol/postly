@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Compose } from './pages/Compose';
@@ -6,9 +6,11 @@ import { Studio } from './pages/Studio';
 import { BusinessDetails } from './pages/BusinessDetails';
 import { ContentCalendar } from './components/ContentCalendar';
 import { Sidebar } from './components/Sidebar';
+import { BufferConfigOverlay } from './components/BufferConfigOverlay';
 import { getTokens, saveTokens } from './utils/auth';
 import { useStore } from './store/useStore';
 import { useAuthStore } from './store/useAuthStore';
+import { Menu, Zap } from 'lucide-react';
 
 export default function App() {
   const { isAuthenticated, loading, initSessionListener, setDevBypass } = useAuthStore();
@@ -17,6 +19,7 @@ export default function App() {
   const setActiveTab = useStore((state) => state.setActiveTab);
   const setStudioImage = useStore((state) => state.setStudioImage);
   const showToast = useStore((state) => state.showToast);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     // 1. Initialize Supabase Auth listener
@@ -77,31 +80,61 @@ export default function App() {
 
   return (
     <div className="bg-black min-h-screen">
-      <Sidebar />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      
+      {/* Mobile Top Header Bar */}
+      <header className="fixed top-0 left-0 right-0 h-16 bg-black/85 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-4 z-40 lg:hidden">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="p-2.5 rounded-xl bg-zinc-900/80 border border-white/10 hover:bg-zinc-800 transition-all active:scale-95"
+        >
+          <Menu className="w-5 h-5 text-white" />
+        </button>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-indigo to-brand-purple flex items-center justify-center">
+            <Zap className="w-4.5 h-4.5 text-white fill-white/10" />
+          </div>
+          <span className="text-sm font-semibold tracking-tight text-white">PostFlow</span>
+        </div>
+        <div className="w-10" /> {/* Spacer to balance the layout */}
+      </header>
+      
       {activeTab === 'dashboard' ? (
-        <Dashboard />
+        <>
+          <Dashboard />
+          <BufferConfigOverlay />
+        </>
       ) : activeTab === 'compose' ? (
-        <Compose onBack={() => setActiveTab('dashboard')} />
+        <>
+          <Compose onBack={() => setActiveTab('dashboard')} />
+          <BufferConfigOverlay />
+        </>
       ) : activeTab === 'studio' ? (
-        <Studio 
-          onBack={() => setActiveTab('dashboard')} 
-          onSelectImage={(img) => {
-            setStudioImage(img);
-            setActiveTab('compose');
-          }} 
-        />
+        <>
+          <Studio 
+            onBack={() => setActiveTab('dashboard')} 
+            onSelectImage={(img) => {
+              setStudioImage(img);
+              setActiveTab('compose');
+            }} 
+          />
+          <BufferConfigOverlay />
+        </>
       ) : activeTab === 'brand' ? (
         <BusinessDetails />
       ) : activeTab === 'calendar' ? (
-        <div className="pl-[240px] min-h-screen bg-black text-white p-10 animate-fade-in-up">
-          <header className="mb-8">
-            <h2 className="text-2xl font-bold tracking-tight text-white">Content Calendar</h2>
-            <p className="text-zinc-500 text-xs mt-1">Drag and drop to reschedule posts across your content pipeline.</p>
-          </header>
-          <ContentCalendar />
-        </div>
+        <>
+          <div className="pl-0 lg:pl-[240px] pt-20 lg:pt-10 min-h-screen bg-black text-white px-4 sm:px-6 lg:pr-10 pb-10 animate-fade-in-up">
+            <header className="mb-8 text-center sm:text-left">
+              <h2 className="text-2xl font-bold tracking-tight text-white">Content Calendar</h2>
+              <p className="text-zinc-500 text-xs mt-1">Drag and drop to reschedule posts across your content pipeline.</p>
+            </header>
+            <ContentCalendar />
+          </div>
+          <BufferConfigOverlay />
+        </>
       ) : (
-        <div className="pl-[240px] pt-20 text-center text-zinc-500 font-mono text-xs">
+        <div className="pl-0 lg:pl-[240px] pt-24 lg:pt-10 pb-10 lg:pb-0 text-center text-zinc-500 font-mono text-xs">
           Workspace component not found.
         </div>
       )}

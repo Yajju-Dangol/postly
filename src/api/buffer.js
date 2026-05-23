@@ -1,23 +1,49 @@
 import { GraphQLClient, gql } from 'graphql-request';
+import { useAuthStore } from '../store/useAuthStore';
 
-const API_KEY = import.meta.env.VITE_BUFFER_API_KEY;
-const ORG_ID = import.meta.env.VITE_BUFFER_ORG_ID;
-const API_URL = window.location.origin + '/api-buffer/graphql';
-
-const getAuthHeader = () => {
-  const tokens = localStorage.getItem('buffer_tokens');
-  if (tokens) {
-    const { access_token } = JSON.parse(tokens);
-    return `Bearer ${access_token}`;
-  }
-  return `Bearer ${import.meta.env.VITE_BUFFER_API_KEY}`;
+// Get business-specific Buffer credentials
+const getBufferCredentials = () => {
+  const brandDetails = useAuthStore.getState().brandDetails;
+  
+  // Only use business-specific credentials - no fallback to env vars
+  const bufferApiKey = brandDetails.bufferApiKey;
+  const bufferOrgId = brandDetails.bufferOrgId;
+  const bufferApiUrl = brandDetails.bufferApiUrl || (window.location.origin + '/api-buffer/graphql');
+  
+  return {
+    apiKey: bufferApiKey,
+    orgId: bufferOrgId,
+    apiUrl: bufferApiUrl
+  };
 };
 
-const client = new GraphQLClient(API_URL, {
-  headers: {
-    Authorization: getAuthHeader(),
-  },
-});
+// Check if Buffer API is properly configured
+export const isBufferConfigured = () => {
+  const { apiKey, orgId } = getBufferCredentials();
+  return Boolean(apiKey && orgId);
+};
+
+// Create GraphQL client with business-specific credentials
+const createBufferClient = () => {
+  const { apiKey, apiUrl } = getBufferCredentials();
+  
+  const getAuthHeader = () => {
+    const tokens = localStorage.getItem('buffer_tokens');
+    if (tokens) {
+      const { access_token } = JSON.parse(tokens);
+      return `Bearer ${access_token}`;
+    }
+    return `Bearer ${apiKey}`;
+  };
+
+  return new GraphQLClient(apiUrl, {
+    headers: {
+      Authorization: getAuthHeader(),
+    },
+  });
+};
+
+const client = createBufferClient();
 
 // Rate limiting protection
 let channelsCache = null;
@@ -26,28 +52,57 @@ let inFlightRequests = new Map();
 // Persistent caching to survive HMR/Refreshes and prevent rate limiting (429)
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 
+const getCacheKey = (key) => {
+  // Include user ID in cache key to separate caches by business/user
+  const userId = useAuthStore.getState().user?.id || 'anonymous';
+  return `postly_cache_${userId}_${key}`;
+};
+
 const getCachedData = (key) => {
-  const cached = localStorage.getItem(`postly_cache_${key}`);
+  const cacheKey = getCacheKey(key);
+  const cached = localStorage.getItem(cacheKey);
   if (!cached) return null;
   const { data, timestamp } = JSON.parse(cached);
   if (Date.now() - timestamp > CACHE_DURATION) {
-    localStorage.removeItem(`postly_cache_${key}`);
+    localStorage.removeItem(cacheKey);
     return null;
   }
   return data;
 };
 
 const setCachedData = (key, data) => {
-  localStorage.setItem(`postly_cache_${key}`, JSON.stringify({
+  const cacheKey = getCacheKey(key);
+  localStorage.setItem(cacheKey, JSON.stringify({
     data,
     timestamp: Date.now()
   }));
 };
 
+// Clear all Buffer cache for current user
+export const clearBufferCache = () => {
+  const userId = useAuthStore.getState().user?.id || 'anonymous';
+  localStorage.removeItem(`postly_cache_${userId}_channels`);
+  localStorage.removeItem(`postly_cache_${userId}_posts`);
+  console.log('[Buffer Cache] Cleared all cache for user:', userId);
+};
+
 const request = async (query, variables = {}) => {
+  // Check if Buffer is properly configured before making request
+  if (!isBufferConfigured()) {
+    console.error('[Buffer Request Error]: Buffer API not configured. Please add API key and Organization ID in settings.');
+    return { 
+      error: true, 
+      code: 'CONFIGURATION_ERROR', 
+      message: 'Buffer API not configured. Please add API key and Organization ID in settings.' 
+    };
+  }
+  
   try {
     console.log('[Buffer Request]:', { query, variables });
-    const response = await client.rawRequest(query, variables);
+    
+    // Recreate the client to ensure it uses the latest credentials
+    const currentClient = createBufferClient();
+    const response = await currentClient.rawRequest(query, variables);
     const { data, errors } = response;
 
     // 1. Handle Non-recoverable errors (GraphQL system errors)
@@ -87,9 +142,12 @@ export const fetchOrganizations = async () => {
   return data?.account?.organizations || [];
 };
 
-export const fetchChannels = async (orgId = ORG_ID, forceRefresh = false) => {
+export const fetchChannels = async (forceRefresh = false) => {
+  const { orgId } = getBufferCredentials();
+  
   if (forceRefresh) {
-    localStorage.removeItem('postly_cache_channels');
+    const cacheKey = getCacheKey('channels');
+    localStorage.removeItem(cacheKey);
   } else {
     const cached = getCachedData('channels');
     if (cached) return cached;
@@ -126,7 +184,8 @@ export const fetchChannels = async (orgId = ORG_ID, forceRefresh = false) => {
       console.warn('[fetchChannels] Request failed:', err.message);
       
       // Try stale cache
-      const stale = localStorage.getItem('postly_cache_channels');
+      const cacheKey = getCacheKey('channels');
+      const stale = localStorage.getItem(cacheKey);
       if (stale) {
         const parsed = JSON.parse(stale);
         return parsed.data;
@@ -144,7 +203,7 @@ export const fetchChannels = async (orgId = ORG_ID, forceRefresh = false) => {
 
 let isCreatingPost = false;
 
-export const createPost = async ({ text, channelId, mode = 'addToQueue', dueAt, assets, type }) => {
+export const createPost = async ({ text, channelId, mode = 'addToQueue', dueAt, assets, service }) => {
   if (isCreatingPost) return { error: true, message: 'A post is already being processed.' };
   
   isCreatingPost = true;
@@ -178,13 +237,35 @@ export const createPost = async ({ text, channelId, mode = 'addToQueue', dueAt, 
       mode,
     };
 
-    if (type) {
-      input.metadata = {
-        instagram: {
-          type: type,
-          shouldShareToFeed: true
-        }
-      };
+    // Platform-specific metadata
+    if (service) {
+      input.metadata = {};
+      
+      switch (service) {
+        case 'instagram':
+          input.metadata.instagram = {
+            type: 'post',
+            shouldShareToFeed: true
+          };
+          break;
+        case 'facebook':
+          input.metadata.facebook = {
+            type: 'post'
+          };
+          break;
+        case 'linkedin':
+          input.metadata.linkedin = {
+            type: 'post'
+          };
+          break;
+        case 'twitter':
+          input.metadata.twitter = {
+            type: 'post'
+          };
+          break;
+        default:
+          delete input.metadata;
+      }
     }
 
     if (mode === 'customScheduled' && dueAt) {
@@ -201,7 +282,8 @@ export const createPost = async ({ text, channelId, mode = 'addToQueue', dueAt, 
 
     const result = data.createPost;
     if (result?.post) {
-      localStorage.removeItem('postly_cache_posts');
+      const cacheKey = getCacheKey('posts');
+      localStorage.removeItem(cacheKey);
       return { post: result.post, success: true };
     }
 
@@ -250,7 +332,8 @@ export const updatePost = async ({ id, text, dueAt, assets }) => {
 
     const result = data.updatePost;
     if (result?.post) {
-      localStorage.removeItem('postly_cache_posts');
+      const cacheKey = getCacheKey('posts');
+      localStorage.removeItem(cacheKey);
       return { post: result.post, success: true };
     }
     return { error: true, message: result?.message || 'Buffer rejected update' };
@@ -261,9 +344,12 @@ export const updatePost = async ({ id, text, dueAt, assets }) => {
 };
 
 
-export const fetchPosts = async (orgId = ORG_ID, forceRefresh = false) => {
+export const fetchPosts = async (forceRefresh = false) => {
+  const { orgId } = getBufferCredentials();
+  
   if (forceRefresh) {
-    localStorage.removeItem('postly_cache_posts');
+    const cacheKey = getCacheKey('posts');
+    localStorage.removeItem(cacheKey);
   } else {
     const cached = getCachedData('posts');
     if (cached) return cached;
@@ -315,7 +401,8 @@ export const fetchPosts = async (orgId = ORG_ID, forceRefresh = false) => {
       console.warn('[fetchPosts] Request failed:', err.message);
       
       // Try stale cache
-      const stale = localStorage.getItem('postly_cache_posts');
+      const cacheKey = getCacheKey('posts');
+      const stale = localStorage.getItem(cacheKey);
       if (stale) {
         const parsed = JSON.parse(stale);
         return parsed.data;
@@ -352,7 +439,8 @@ export const deletePost = async (id) => {
 
     const result = data.deletePost;
     if (result?.id) {
-      localStorage.removeItem('postly_cache_posts');
+      const cacheKey = getCacheKey('posts');
+      localStorage.removeItem(cacheKey);
       return { success: true };
     }
     return { error: true, message: result?.message || 'Buffer rejected deletion' };

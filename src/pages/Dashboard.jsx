@@ -95,18 +95,18 @@ export function Dashboard() {
   ];
 
   return (
-    <div className="pl-[240px] min-h-screen bg-black text-white p-10 animate-fade-in-up">
+    <div className="pl-0 lg:pl-[240px] pt-20 lg:pt-10 min-h-screen bg-black text-white px-4 sm:px-6 lg:pr-10 pb-10 animate-fade-in-up">
       
       {/* 1. Welcoming Header Controls */}
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+        <div className="text-center sm:text-left">
+          <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2 justify-center sm:justify-start">
             Social Operations Dashboard <Activity className="w-5 h-5 text-brand-purple" />
           </h2>
           <p className="text-zinc-500 text-xs mt-1">Real-time status of your social channels, queued posts, and automated execution health.</p>
         </div>
 
-        <div className="flex items-center gap-3 self-start sm:self-center">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 self-start sm:self-center">
           {/* Elegant Date Selector */}
           <div className="relative">
             <button
@@ -169,7 +169,7 @@ export function Dashboard() {
         {scorecards.map((card, i) => {
           const IconComponent = card.icon;
           return (
-            <div key={i} className="p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 flex items-center justify-between shadow-lg relative overflow-hidden group hover:border-brand-purple/20 transition-all duration-300">
+            <div key={i} className="p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 flex items-center justify-between shadow-lg relative overflow-hidden group hover:border-brand-purple/20 transition-all duration-300">
               <div className="space-y-1 z-10">
                 <span className="text-zinc-500 text-[10px] font-bold tracking-wide uppercase font-mono">{card.label}</span>
                 <div className="flex items-baseline gap-2">
@@ -189,7 +189,7 @@ export function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Left Bento: Posting Activity Heatmap */}
-        <div className="p-8 rounded-[2rem] bg-zinc-950/40 border border-white/5 flex flex-col justify-between">
+        <div className="p-5 sm:p-8 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 flex flex-col justify-between">
           <div className="mb-4">
             <span className="text-xs font-semibold text-zinc-400 tracking-wide uppercase">Optimal Slots</span>
             <h3 className="text-base font-bold text-white mt-0.5">Posting Activity & Heatmap</h3>
@@ -236,7 +236,7 @@ export function Dashboard() {
         </div>
 
         {/* Center Bento: Live Upcoming Scheduled Queue */}
-        <div className="p-8 rounded-[2rem] bg-zinc-950/40 border border-white/5 flex flex-col justify-between">
+        <div className="p-5 sm:p-8 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
             <div>
               <span className="text-xs font-semibold text-zinc-400 tracking-wide uppercase">Pipeline</span>
@@ -310,7 +310,7 @@ export function Dashboard() {
         </div>
 
         {/* Right Bento: Error Logs Registry */}
-        <div className="p-8 rounded-[2rem] bg-zinc-950/40 border border-white/5 flex flex-col justify-between">
+        <div className="p-5 sm:p-8 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
             <div>
               <span className="text-xs font-semibold text-zinc-400 tracking-wide uppercase font-mono">Warnings</span>

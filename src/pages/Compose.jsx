@@ -88,14 +88,36 @@ export function Compose({ onBack }) {
   // Live Previews active tab
   const [previewTab, setPreviewTab] = useState('instagram');
 
+  // Derive preview data from real connected channels
+  const getActivePreviewChannel = () => {
+    if (!channels.length) return null;
+    return channels.find(c => selectedChannels.includes(c.id) && c.service === previewTab) || null;
+  };
+
+  const getChannelInitials = (name) => {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0][0].toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
+  const getChannelHandle = (name) => {
+    if (!name) return 'username';
+    return name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  };
+
   useEffect(() => {
     loadChannels();
-    // Check if an image was passed from Creative Studio
-    if (studioImage) {
-      setImageUrl(studioImage);
-      setMediaTab('upload');
-    }
-  }, [studioImage]);
+  }, []);
+
+  useEffect(() => {
+    if (!studioImage) return;
+
+    setImageUrl(studioImage);
+    setRawFile(null);
+    setMediaTab('upload');
+    setStudioImage(null);
+  }, [studioImage, setStudioImage]);
 
   // Handle auto-selecting first channel
   useEffect(() => {
@@ -486,7 +508,7 @@ export function Compose({ onBack }) {
   };
 
   return (
-    <div className="pl-[240px] min-h-screen bg-black text-white p-10 flex flex-col justify-between relative">
+    <div className="pl-0 lg:pl-[240px] pt-20 lg:pt-10 min-h-screen bg-black text-white px-4 sm:px-6 lg:pr-10 pb-10 flex flex-col justify-between relative">
       
       {/* Dynamic Submitting Overlay */}
       {isSubmitting && (
@@ -499,7 +521,7 @@ export function Compose({ onBack }) {
 
       {/* Header title */}
       <header className="flex items-center justify-between mb-8">
-        <div>
+        <div className="text-center sm:text-left">
           <h2 className="text-2xl font-bold tracking-tight text-white">Create Post</h2>
           <p className="text-zinc-500 text-xs mt-1">Compose, customize, and schedule your post across multiple platforms.</p>
         </div>
@@ -518,7 +540,7 @@ export function Compose({ onBack }) {
         <div className="lg:col-span-7 space-y-6">
           
           {/* 1. SELECT PLATFORMS */}
-          <div className="p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
+          <div className="p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">1. Select Platforms</span>
               <div className="flex items-center gap-3">
@@ -589,7 +611,7 @@ export function Compose({ onBack }) {
           </div>
 
           {/* 2. CONTENT & AI HELPER */}
-          <div className="p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4 relative">
+          <div className="p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4 relative">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">2. Content Draft</span>
               <span className="text-[10px] text-zinc-500 font-semibold font-mono tracking-wider">
@@ -671,7 +693,7 @@ export function Compose({ onBack }) {
           </div>
 
           {/* 3. MEDIA PIPELINE */}
-          <div className="p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
+          <div className="p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
             <div className="flex items-center justify-between border-b border-white/5 pb-2">
               <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">3. Media Pipeline</span>
               <div className="flex bg-zinc-950 p-0.5 rounded-lg border border-white/5">
@@ -929,7 +951,7 @@ export function Compose({ onBack }) {
           </div>
 
           {/* 5. SMART SCHEDULING MODE */}
-          <div className="p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
+          <div className="p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
             <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">5. Smart Scheduling</span>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1002,7 +1024,7 @@ export function Compose({ onBack }) {
 
         {/* RIGHT COLUMN: Live Native Previews (span 5) */}
         <div className="lg:col-span-5 lg:sticky lg:top-6 space-y-6">
-          <div className="p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
+          <div className="p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 space-y-4">
             <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">4. Live Preview</span>
 
             {/* Platform tab filters */}
@@ -1026,15 +1048,17 @@ export function Compose({ onBack }) {
             <div className="rounded-2xl bg-zinc-950 border border-white/5 p-4.5 min-h-[300px] flex flex-col justify-between">
               
               {/* Instagram Style */}
-              {previewTab === 'instagram' && (
+              {previewTab === 'instagram' && (() => {
+                const active = getActivePreviewChannel();
+                return (
                 <div className="space-y-3.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-500 via-pink-500 to-purple-600 p-0.5">
-                        <div className="w-full h-full rounded-full bg-black flex items-center justify-center text-[10px] font-bold">AJ</div>
+                        <div className="w-full h-full rounded-full bg-black flex items-center justify-center text-[10px] font-bold">{getChannelInitials(active?.name)}</div>
                       </div>
                       <div>
-                        <span className="text-[11px] font-bold text-white block">alex.johnson</span>
+                        <span className="text-[11px] font-bold text-white block">{active ? getChannelHandle(active.name) : 'your_profile'}</span>
                         <span className="text-[9px] text-zinc-500 leading-none">Sponsored</span>
                       </div>
                     </div>
@@ -1066,23 +1090,26 @@ export function Compose({ onBack }) {
                   {/* Caption block */}
                   <div className="text-xs space-y-1">
                     <p className="text-zinc-300 leading-relaxed">
-                      <strong className="text-white mr-1.5">alex.johnson</strong>
+                      <strong className="text-white mr-1.5">{active ? getChannelHandle(active.name) : 'your_profile'}</strong>
                       {text || 'Enter your content caption on the left composer panel to see a live simulation of the output formatting.'}
                     </p>
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
               {/* X / Twitter Style */}
-              {previewTab === 'twitter' && (
+              {previewTab === 'twitter' && (() => {
+                const active = getActivePreviewChannel();
+                return (
                 <div className="space-y-3">
                   <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center font-bold text-xs">AJ</div>
+                    <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center font-bold text-xs">{getChannelInitials(active?.name)}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1">
-                        <span className="text-xs font-bold text-white truncate">Alex Johnson</span>
-                        <span className="text-[10px] text-zinc-500 truncate">@alex_johnson</span>
-                        <span className="text-[10px] text-zinc-500 font-mono">• 2s</span>
+                        <span className="text-xs font-bold text-white truncate">{active?.name || 'Your Name'}</span>
+                        <span className="text-[10px] text-zinc-500 truncate">@{active ? getChannelHandle(active.name) : 'username'}</span>
+                        <span className="text-[10px] text-zinc-500 font-mono">• now</span>
                       </div>
                       
                       <p className="text-xs text-zinc-300 mt-1 leading-relaxed whitespace-pre-line">
@@ -1105,15 +1132,18 @@ export function Compose({ onBack }) {
                     </div>
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
               {/* Facebook Preview */}
-              {previewTab === 'facebook' && (
+              {previewTab === 'facebook' && (() => {
+                const active = getActivePreviewChannel();
+                return (
                 <div className="space-y-3.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8.5 h-8.5 rounded-full bg-blue-600 flex items-center justify-center font-bold text-sm">AJ</div>
+                    <div className="w-8.5 h-8.5 rounded-full bg-blue-600 flex items-center justify-center font-bold text-sm">{getChannelInitials(active?.name)}</div>
                     <div>
-                      <span className="text-xs font-bold text-white block">Alex Johnson</span>
+                      <span className="text-xs font-bold text-white block">{active?.name || 'Your Name'}</span>
                       <div className="flex items-center gap-1 text-[9px] text-zinc-500">
                         <span>Just now</span>
                         <span>•</span>
@@ -1139,20 +1169,23 @@ export function Compose({ onBack }) {
                     <span className="hover:text-white cursor-pointer">↪️ Share</span>
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
               {/* LinkedIn Preview */}
-              {previewTab === 'linkedin' && (
+              {previewTab === 'linkedin' && (() => {
+                const active = getActivePreviewChannel();
+                return (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex gap-2">
-                      <div className="w-8.5 h-8.5 rounded bg-zinc-800 flex items-center justify-center font-bold text-xs text-brand-purple">AJ</div>
+                      <div className="w-8.5 h-8.5 rounded bg-zinc-800 flex items-center justify-center font-bold text-xs text-brand-purple">{getChannelInitials(active?.name)}</div>
                       <div>
                         <div className="flex items-center gap-1">
-                          <span className="text-xs font-bold text-white">Alex Johnson</span>
+                          <span className="text-xs font-bold text-white">{active?.name || 'Your Name'}</span>
                           <span className="text-[9px] text-zinc-500 font-normal">• 1st</span>
                         </div>
-                        <p className="text-[9px] text-zinc-500">Senior Content Strategist & Consultant</p>
+                        <p className="text-[9px] text-zinc-500">Content Creator</p>
                         <p className="text-[8px] text-zinc-600 flex items-center gap-0.5">1h • 🌐</p>
                       </div>
                     </div>
@@ -1177,13 +1210,14 @@ export function Compose({ onBack }) {
                     <span className="cursor-pointer hover:text-white">✉️ Send</span>
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
             </div>
           </div>
 
           {/* Action Trigger Buttons */}
-          <div className="p-6 rounded-[2rem] bg-zinc-950/40 border border-white/5 flex gap-4">
+          <div className="p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-zinc-950/40 border border-white/5 flex gap-4">
             {editingPost ? (
               <>
                 <button

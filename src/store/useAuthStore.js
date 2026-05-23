@@ -15,7 +15,12 @@ export const useAuthStore = create((set, get) => ({
     basePrompt: 'A highly professional, premium image.',
     description: 'We inspire and equip adventurers to explore the world’s most breathtaking places. Quality gear, expert advice.',
     logoUrl: '',
+    bufferApiKey: '',
+    bufferOrgId: '',
+    bufferClientId: '',
+    bufferApiUrl: '',
   },
+  hasBufferApiKey: false,
 
   signInWithGoogle: async () => {
     try {
@@ -46,8 +51,25 @@ export const useAuthStore = create((set, get) => ({
     const user = get().user;
     const updatedDetails = { ...get().brandDetails, ...details };
     
+    // Check if Buffer API credentials changed
+    const oldDetails = get().brandDetails;
+    const credentialsChanged = 
+      oldDetails.bufferApiKey !== updatedDetails.bufferApiKey ||
+      oldDetails.bufferOrgId !== updatedDetails.bufferOrgId;
+    
+    // If credentials changed, clear Buffer cache
+    if (credentialsChanged && user) {
+      const userId = user.id;
+      localStorage.removeItem(`postly_cache_${userId}_channels`);
+      localStorage.removeItem(`postly_cache_${userId}_posts`);
+      console.log('[Buffer Cache] Cleared due to API credential change');
+    }
+    
     // Update local state immediately
-    set({ brandDetails: updatedDetails });
+    set({ 
+      brandDetails: updatedDetails,
+      hasBufferApiKey: Boolean(updatedDetails.bufferApiKey && updatedDetails.bufferOrgId)
+    });
     
     // Also save in localStorage as fallback
     localStorage.setItem('postly_brand_details', JSON.stringify(updatedDetails));
@@ -66,6 +88,10 @@ export const useAuthStore = create((set, get) => ({
             base_prompt: updatedDetails.basePrompt,
             description: updatedDetails.description,
             logo_url: updatedDetails.logoUrl,
+            buffer_api_key: updatedDetails.bufferApiKey,
+            buffer_org_id: updatedDetails.bufferOrgId,
+            buffer_client_id: updatedDetails.bufferClientId,
+            buffer_api_url: updatedDetails.bufferApiUrl,
             updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id' });
 
@@ -92,17 +118,24 @@ export const useAuthStore = create((set, get) => ({
       }
 
       if (data) {
+        const brandDetails = {
+          name: data.name || '',
+          tagline: data.tagline || '',
+          industry: data.industry || 'Technology',
+          tone: data.tone || 'Professional and modern',
+          colors: data.colors || ['#001b2a', '#f97316', '#0d1b2a'],
+          basePrompt: data.base_prompt || 'A highly professional, premium image.',
+          description: data.description || '',
+          logoUrl: data.logo_url || '',
+          bufferApiKey: data.buffer_api_key || '',
+          bufferOrgId: data.buffer_org_id || '',
+          bufferClientId: data.buffer_client_id || '',
+          bufferApiUrl: data.buffer_api_url || '',
+        };
+        
         set({
-          brandDetails: {
-            name: data.name || '',
-            tagline: data.tagline || '',
-            industry: data.industry || 'Technology',
-            tone: data.tone || 'Professional and modern',
-            colors: data.colors || ['#001b2a', '#f97316', '#0d1b2a'],
-            basePrompt: data.base_prompt || 'A highly professional, premium image.',
-            description: data.description || '',
-            logoUrl: data.logo_url || '',
-          }
+          brandDetails,
+          hasBufferApiKey: Boolean(brandDetails.bufferApiKey && brandDetails.bufferOrgId)
         });
       }
     } catch (err) {
